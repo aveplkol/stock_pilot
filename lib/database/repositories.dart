@@ -8,12 +8,28 @@ const _uuid = Uuid();
 abstract class InventoryRepositoryBase {
   Stream<List<InventoryItem>> watchItems();
 
+  Stream<List<Category>> watchCategories();
+
   Future<InventoryItem> createItem({
     required String name,
     required String unit,
     double quantity,
     double minimumQuantity,
     double? purchasePrice,
+    double? price,
+    bool availableForOrdering,
+    String? notes,
+    String? categoryId,
+  });
+
+  Future<void> updateItem({
+    required String id,
+    required String name,
+    required String unit,
+    double? minimumQuantity,
+    double? purchasePrice,
+    double? price,
+    bool? availableForOrdering,
     String? notes,
     String? categoryId,
   });
@@ -25,6 +41,10 @@ abstract class InventoryRepositoryBase {
         required String unit,
         String? notes,
       });
+
+  /// Sets the on-hand quantity to an absolute value, recording an
+  /// ADJUSTMENT transaction for the difference.
+  Future<void> setQuantity(String itemId, double target);
 
   Stream<List<StockTransaction>> watchHistory(String itemId);
 
@@ -49,12 +69,24 @@ class InventoryRepository implements InventoryRepositoryBase {
   }
 
   @override
+  Stream<List<Category>> watchCategories() {
+    return (db.select(db.categories)
+      ..where((t) => t.deletedAt.isNull())
+      ..orderBy([
+            (t) => OrderingTerm(expression: t.name),
+      ]))
+        .watch();
+  }
+
+  @override
   Future<InventoryItem> createItem({
     required String name,
     required String unit,
     double quantity = 0,
     double minimumQuantity = 0,
     double? purchasePrice,
+    double? price,
+    bool availableForOrdering = true,
     String? notes,
     String? categoryId,
   }) async {
@@ -69,6 +101,8 @@ class InventoryRepository implements InventoryRepositoryBase {
         quantity: Value(quantity),
         minimumQuantity: Value(minimumQuantity),
         purchasePrice: Value(purchasePrice),
+        price: Value(price),
+        availableForOrdering: Value(availableForOrdering),
         notes: Value(notes),
         categoryId: Value(categoryId),
         createdAt: now,
@@ -89,6 +123,41 @@ class InventoryRepository implements InventoryRepositoryBase {
     return (db.select(db.inventoryItems)
       ..where((t) => t.id.equals(id)))
         .getSingle();
+  }
+
+  @override
+  Future<void> updateItem({
+    required String id,
+    required String name,
+    required String unit,
+    double? minimumQuantity,
+    double? purchasePrice,
+    double? price,
+    bool? availableForOrdering,
+    String? notes,
+    String? categoryId,
+  }) async {
+    final now = DateTime.now();
+
+    await (db.update(db.inventoryItems)
+          ..where((t) => t.id.equals(id)))
+        .write(
+      InventoryItemsCompanion(
+        name: Value(name),
+        unit: Value(unit),
+        minimumQuantity: minimumQuantity == null
+            ? const Value.absent()
+            : Value(minimumQuantity),
+        purchasePrice: Value(purchasePrice),
+        price: Value(price),
+        availableForOrdering: availableForOrdering == null
+            ? const Value.absent()
+            : Value(availableForOrdering),
+        notes: Value(notes),
+        categoryId: Value(categoryId),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   @override
@@ -141,6 +210,25 @@ class InventoryRepository implements InventoryRepositoryBase {
   }
 
   @override
+  Future<void> setQuantity(String itemId, double target) async {
+    if (target < 0) {
+      throw StateError('Quantity cannot be negative');
+    }
+    final item = await (db.select(db.inventoryItems)
+          ..where((t) => t.id.equals(itemId)))
+        .getSingle();
+    final delta = target - item.quantity;
+    if (delta == 0) return;
+    await addTransaction(
+      itemId,
+      delta,
+      'ADJUSTMENT',
+      unit: item.unit,
+      notes: 'Manual quantity set',
+    );
+  }
+
+  @override
   Stream<List<StockTransaction>> watchHistory(
       String itemId,
       ) {
@@ -189,6 +277,86 @@ class InventoryRepository implements InventoryRepositoryBase {
   }
 }
 
+class SocietiesRepository {
+  SocietiesRepository(this.db);
+
+  final AppDatabase db;
+
+  Stream<List<Society>> watchSocieties() {
+    return (db.select(db.societies)
+          ..where((t) => t.deletedAt.isNull())
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.name),
+          ]))
+        .watch();
+  }
+
+  Future<List<Society>> getSocieties() {
+    return (db.select(db.societies)
+          ..where((t) => t.deletedAt.isNull())
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.name),
+          ]))
+        .get();
+  }
+
+  /// Adds a new society by name. If a (non-deleted) society with the same
+  /// name already exists it is returned instead of creating a duplicate.
+  Future<Society> addSociety(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('Society name cannot be empty');
+    }
+
+    final existing = await (db.select(db.societies)
+          ..where((t) => t.deletedAt.isNull() & t.name.equals(trimmed)))
+        .get();
+    if (existing.isNotEmpty) {
+      return existing.first;
+    }
+
+    final now = DateTime.now();
+    final id = _uuid.v4();
+    await db.into(db.societies).insert(
+          SocietiesCompanion.insert(
+            id: id,
+            name: trimmed,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    return (db.select(db.societies)..where((t) => t.id.equals(id)))
+        .getSingle();
+  }
+
+  /// Seeds the default set of societies if the table is empty.
+  Future<void> ensureDefaultSocieties() async {
+    const names = [
+      'Prestige Ozone',
+      'Palm Meadows',
+      'Brigade Gateway',
+      'Sobha Dream Acres',
+      'Godrej Woods',
+    ];
+
+    final existing = await db.select(db.societies).get();
+    final have = existing.map((e) => e.name).toSet();
+
+    for (final name in names.where((n) => !have.contains(n))) {
+      final now = DateTime.now();
+      await db.into(db.societies).insert(
+            SocietiesCompanion.insert(
+              id: _uuid.v4(),
+              name: name,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+    }
+  }
+}
+
 class CustomersRepository {
   CustomersRepository(this.db);
 
@@ -211,6 +379,8 @@ class CustomersRepository {
     String? phone,
     String? email,
     String? address,
+    String? society,
+    bool active = true,
     String? notes,
   }) async {
     final now = DateTime.now();
@@ -223,6 +393,8 @@ class CustomersRepository {
           phone: Value(phone),
           email: Value(email),
           address: Value(address),
+          society: Value(society),
+          active: Value(active),
           notes: Value(notes),
           createdAt: now,
           updatedAt: now,
@@ -237,12 +409,63 @@ class CustomersRepository {
           phone: Value(phone),
           email: Value(email),
           address: Value(address),
+          society: Value(society),
+          active: Value(active),
           notes: Value(notes),
           updatedAt: Value(now),
         ),
       );
     }
   }
+
+  /// Toggles a customer's active/inactive state.
+  Future<void> setActive(String id, bool active) async {
+    await (db.update(db.customers)..where((t) => t.id.equals(id))).write(
+      CustomersCompanion(
+        active: Value(active),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+}
+
+/// A single line item within an order (for the detailed report).
+class OrderReportItem {
+  const OrderReportItem({
+    required this.itemName,
+    required this.quantity,
+    required this.unit,
+    required this.total,
+  });
+
+  final String itemName;
+  final double quantity;
+  final String unit;
+  final double total;
+}
+
+/// A single order with the denormalized customer name, society and the
+/// list of line items, used for building the Overview order report.
+class OrderReportRow {
+  const OrderReportRow({
+    required this.orderId,
+    required this.orderNumber,
+    required this.orderDate,
+    required this.total,
+    required this.customerId,
+    required this.customerName,
+    required this.society,
+    required this.items,
+  });
+
+  final String orderId;
+  final String orderNumber;
+  final DateTime orderDate;
+  final double total;
+  final String? customerId;
+  final String customerName;
+  final String society;
+  final List<OrderReportItem> items;
 }
 
 class NewOrderLine {
@@ -274,6 +497,66 @@ class OrdersRepository {
         ),
       ]))
         .watch();
+  }
+
+  /// Streams all (non-deleted) orders joined to their customer and line
+  /// items so the Overview can report totals and item breakdowns
+  /// All / Society-wise / Customer-wise (optionally per month).
+  ///
+  /// The stream re-emits whenever orders change; on each emission it loads
+  /// the matching order items and inventory names to build the breakdown.
+  Stream<List<OrderReportRow>> watchOrderReport() {
+    final ordersStream = (db.select(db.orders).join([
+      leftOuterJoin(
+        db.customers,
+        db.customers.id.equalsExp(db.orders.customerId),
+      ),
+    ])
+          ..where(db.orders.deletedAt.isNull())
+          ..orderBy([
+            OrderingTerm(
+              expression: db.orders.orderDate,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .watch();
+
+    return ordersStream.asyncMap((rows) async {
+      // Load all order items and inventory names once per emission.
+      final allItems = await db.select(db.orderItems).get();
+      final inventory = await db.select(db.inventoryItems).get();
+      final nameById = {for (final i in inventory) i.id: i.name};
+
+      final itemsByOrder = <String, List<OrderReportItem>>{};
+      for (final it in allItems) {
+        itemsByOrder.putIfAbsent(it.orderId, () => []).add(
+              OrderReportItem(
+                itemName:
+                    nameById[it.inventoryItemId] ?? 'Unknown item',
+                quantity: it.quantity,
+                unit: it.unit,
+                total: it.total,
+              ),
+            );
+      }
+
+      return rows.map((row) {
+        final order = row.readTable(db.orders);
+        final customer = row.readTableOrNull(db.customers);
+        return OrderReportRow(
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          orderDate: order.orderDate,
+          total: order.total,
+          customerId: order.customerId,
+          customerName: customer?.name ?? 'Walk-in / Unknown',
+          society: (customer?.society == null || customer!.society!.isEmpty)
+              ? 'No society'
+              : customer.society!,
+          items: itemsByOrder[order.id] ?? const [],
+        );
+      }).toList();
+    });
   }
 
   Future<String> createOrder({

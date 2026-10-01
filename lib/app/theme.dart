@@ -22,9 +22,26 @@ class StockPilotTheme {
     inputDecorationTheme: const InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
+      isDense: true,
+      // Keep floating labels left-aligned and vertically consistent with
+      // the input text across every form in the app.
+      alignLabelWithHint: true,
+      floatingLabelAlignment: FloatingLabelAlignment.start,
+      floatingLabelBehavior: FloatingLabelBehavior.auto,
+      labelStyle: TextStyle(color: Color(0xFF5A6B64)),
+      floatingLabelStyle: TextStyle(color: primary),
+      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
         borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: primary, width: 1.5),
       ),
     ),
   );

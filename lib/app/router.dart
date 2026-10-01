@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../providers.dart';
 import '../features/auth/login_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/inventory/inventory_page.dart';
@@ -15,14 +17,24 @@ class AuthRouterNotifier extends ChangeNotifier {
   AuthRouterNotifier() {
     _subscription =
         Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      // Defer notification to avoid triggering router redirects during an
+      // active widget build/dispose phase (which throws the
+      // `_dependents.isEmpty` assertion). Scheduling on a microtask lets the
+      // current frame settle before navigation occurs.
+      scheduleMicrotask(() {
+        if (!_disposed) {
           notifyListeners();
-        });
+        }
+      });
+    });
   }
 
   late final StreamSubscription<AuthState> _subscription;
+  bool _disposed = false;
 
   @override
   void dispose() {
+    _disposed = true;
     _subscription.cancel();
     super.dispose();
   }
@@ -89,7 +101,7 @@ GoRouter createStockPilotRouter() {
   );
 }
 
-class StockPilotShell extends StatelessWidget {
+class StockPilotShell extends ConsumerWidget {
   const StockPilotShell({
     required this.child,
     super.key,
@@ -98,7 +110,12 @@ class StockPilotShell extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Keep the startup/auth-driven cloud pull alive while the app shell is
+    // mounted, so remote data (inventory catalog, customers, etc.) is
+    // pulled into the local DB on launch and after sign-in.
+    ref.watch(startupSyncProvider);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= 900) {

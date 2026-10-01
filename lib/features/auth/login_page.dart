@@ -33,6 +33,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       return;
     }
 
+    final emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
+    if (!emailRegex.hasMatch(email)) {
+      _showMessage('Enter a valid email address.');
+      return;
+    }
+
     if (password.length < 6) {
       _showMessage('Password must contain at least 6 characters.');
       return;

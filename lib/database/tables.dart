@@ -1,4 +1,14 @@
-import 'package:drift/drift.dart';
+ import 'package:drift/drift.dart';
+
+class Societies extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get name => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  @override Set<Column> get primaryKey => {id};
+}
 
 class Categories extends Table {
   TextColumn get id => text()();
@@ -19,6 +29,9 @@ class InventoryItems extends Table {
   TextColumn get unit => text()();
   RealColumn get minimumQuantity => real().withDefault(const Constant(0))();
   RealColumn get purchasePrice => real().nullable()();
+  RealColumn get price => real().nullable()();
+  BoolColumn get availableForOrdering =>
+      boolean().withDefault(const Constant(true))();
   TextColumn get notes => text().nullable()();
   TextColumn get imageUrl => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
@@ -47,7 +60,11 @@ class Customers extends Table {
   TextColumn get name => text()();
   TextColumn get phone => text().nullable()();
   TextColumn get email => text().nullable()();
+  // Repurposed as "Block Number" in the UI (column kept as `address`
+  // to avoid a destructive rename / data loss for existing rows).
   TextColumn get address => text().nullable()();
+  TextColumn get society => text().nullable()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();

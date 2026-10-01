@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'database/app_database.dart';
 import 'database/repositories.dart';
 import 'features/auth/auth_repository.dart';
+import 'services/sync/sync_service.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -16,6 +17,12 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 final inventoryRepositoryProvider =
 Provider<InventoryRepositoryBase>((ref) {
   return InventoryRepository(
+    ref.watch(databaseProvider),
+  );
+});
+
+final societiesRepositoryProvider = Provider<SocietiesRepository>((ref) {
+  return SocietiesRepository(
     ref.watch(databaseProvider),
   );
 });
@@ -48,4 +55,45 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final authStateProvider = StreamProvider<AuthState>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges;
+});
+
+// ------------------------------------------------------------
+// Cloud Sync
+// ------------------------------------------------------------
+
+final syncServiceProvider = Provider<SyncService>((ref) {
+  return SyncService(
+    ref.watch(databaseProvider),
+    ref.watch(supabaseClientProvider),
+  );
+});
+
+/// Pulls remote data into the local database whenever a user is signed in
+/// (on app start and on every sign-in), so the catalog is pre-populated
+/// from the cloud — similar to storefront apps that load their catalog on
+/// launch. Watch this provider somewhere persistent (e.g. the app shell)
+/// to keep it alive.
+final startupSyncProvider = Provider<void>((ref) {
+  final sync = ref.watch(syncServiceProvider);
+
+  Future<void> pull() async {
+    if (sync.isSignedIn) {
+      await sync.pullAll();
+    }
+  }
+
+  // Initial pull for an already-restored session.
+  // ignore: discarded_futures
+  pull();
+
+  // Re-pull on auth changes (e.g. after login).
+  final sub = ref
+      .watch(supabaseClientProvider)
+      .auth
+      .onAuthStateChange
+      .listen((_) {
+    // ignore: discarded_futures
+    pull();
+  });
+  ref.onDispose(sub.cancel);
 });

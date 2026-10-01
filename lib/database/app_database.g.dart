@@ -3,6 +3,414 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
+class $SocietiesTable extends Societies
+    with TableInfo<$SocietiesTable, Society> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SocietiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    name,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'societies';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Society> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Society map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Society(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $SocietiesTable createAlias(String alias) {
+    return $SocietiesTable(attachedDatabase, alias);
+  }
+}
+
+class Society extends DataClass implements Insertable<Society> {
+  final String id;
+  final String? userId;
+  final String name;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const Society({
+    required this.id,
+    this.userId,
+    required this.name,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<String>(userId);
+    }
+    map['name'] = Variable<String>(name);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  SocietiesCompanion toCompanion(bool nullToAbsent) {
+    return SocietiesCompanion(
+      id: Value(id),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      name: Value(name),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory Society.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Society(
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String?>(json['userId']),
+      name: serializer.fromJson<String>(json['name']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String?>(userId),
+      'name': serializer.toJson<String>(name),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  Society copyWith({
+    String? id,
+    Value<String?> userId = const Value.absent(),
+    String? name,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => Society(
+    id: id ?? this.id,
+    userId: userId.present ? userId.value : this.userId,
+    name: name ?? this.name,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  Society copyWithCompanion(SocietiesCompanion data) {
+    return Society(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      name: data.name.present ? data.name.value : this.name,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Society(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, userId, name, createdAt, updatedAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Society &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.name == this.name &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class SocietiesCompanion extends UpdateCompanion<Society> {
+  final Value<String> id;
+  final Value<String?> userId;
+  final Value<String> name;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const SocietiesCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SocietiesCompanion.insert({
+    required String id,
+    this.userId = const Value.absent(),
+    required String name,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<Society> custom({
+    Expression<String>? id,
+    Expression<String>? userId,
+    Expression<String>? name,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (name != null) 'name': name,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SocietiesCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? userId,
+    Value<String>? name,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return SocietiesCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SocietiesCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $CategoriesTable extends Categories
     with TableInfo<$CategoriesTable, Category> {
   @override
@@ -499,6 +907,29 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _priceMeta = const VerificationMeta('price');
+  @override
+  late final GeneratedColumn<double> price = GeneratedColumn<double>(
+    'price',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _availableForOrderingMeta =
+      const VerificationMeta('availableForOrdering');
+  @override
+  late final GeneratedColumn<bool> availableForOrdering = GeneratedColumn<bool>(
+    'available_for_ordering',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("available_for_ordering" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
@@ -562,6 +993,8 @@ class $InventoryItemsTable extends InventoryItems
     unit,
     minimumQuantity,
     purchasePrice,
+    price,
+    availableForOrdering,
     notes,
     imageUrl,
     createdAt,
@@ -634,6 +1067,21 @@ class $InventoryItemsTable extends InventoryItems
         purchasePrice.isAcceptableOrUnknown(
           data['purchase_price']!,
           _purchasePriceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('price')) {
+      context.handle(
+        _priceMeta,
+        price.isAcceptableOrUnknown(data['price']!, _priceMeta),
+      );
+    }
+    if (data.containsKey('available_for_ordering')) {
+      context.handle(
+        _availableForOrderingMeta,
+        availableForOrdering.isAcceptableOrUnknown(
+          data['available_for_ordering']!,
+          _availableForOrderingMeta,
         ),
       );
     }
@@ -712,6 +1160,14 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.double,
         data['${effectivePrefix}purchase_price'],
       ),
+      price: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}price'],
+      ),
+      availableForOrdering: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}available_for_ordering'],
+      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -750,6 +1206,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final String unit;
   final double minimumQuantity;
   final double? purchasePrice;
+  final double? price;
+  final bool availableForOrdering;
   final String? notes;
   final String? imageUrl;
   final DateTime createdAt;
@@ -764,6 +1222,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     required this.unit,
     required this.minimumQuantity,
     this.purchasePrice,
+    this.price,
+    required this.availableForOrdering,
     this.notes,
     this.imageUrl,
     required this.createdAt,
@@ -787,6 +1247,10 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     if (!nullToAbsent || purchasePrice != null) {
       map['purchase_price'] = Variable<double>(purchasePrice);
     }
+    if (!nullToAbsent || price != null) {
+      map['price'] = Variable<double>(price);
+    }
+    map['available_for_ordering'] = Variable<bool>(availableForOrdering);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
@@ -817,6 +1281,10 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       purchasePrice: purchasePrice == null && nullToAbsent
           ? const Value.absent()
           : Value(purchasePrice),
+      price: price == null && nullToAbsent
+          ? const Value.absent()
+          : Value(price),
+      availableForOrdering: Value(availableForOrdering),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -845,6 +1313,10 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       unit: serializer.fromJson<String>(json['unit']),
       minimumQuantity: serializer.fromJson<double>(json['minimumQuantity']),
       purchasePrice: serializer.fromJson<double?>(json['purchasePrice']),
+      price: serializer.fromJson<double?>(json['price']),
+      availableForOrdering: serializer.fromJson<bool>(
+        json['availableForOrdering'],
+      ),
       notes: serializer.fromJson<String?>(json['notes']),
       imageUrl: serializer.fromJson<String?>(json['imageUrl']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -864,6 +1336,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'unit': serializer.toJson<String>(unit),
       'minimumQuantity': serializer.toJson<double>(minimumQuantity),
       'purchasePrice': serializer.toJson<double?>(purchasePrice),
+      'price': serializer.toJson<double?>(price),
+      'availableForOrdering': serializer.toJson<bool>(availableForOrdering),
       'notes': serializer.toJson<String?>(notes),
       'imageUrl': serializer.toJson<String?>(imageUrl),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -881,6 +1355,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     String? unit,
     double? minimumQuantity,
     Value<double?> purchasePrice = const Value.absent(),
+    Value<double?> price = const Value.absent(),
+    bool? availableForOrdering,
     Value<String?> notes = const Value.absent(),
     Value<String?> imageUrl = const Value.absent(),
     DateTime? createdAt,
@@ -897,6 +1373,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     purchasePrice: purchasePrice.present
         ? purchasePrice.value
         : this.purchasePrice,
+    price: price.present ? price.value : this.price,
+    availableForOrdering: availableForOrdering ?? this.availableForOrdering,
     notes: notes.present ? notes.value : this.notes,
     imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
     createdAt: createdAt ?? this.createdAt,
@@ -919,6 +1397,10 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       purchasePrice: data.purchasePrice.present
           ? data.purchasePrice.value
           : this.purchasePrice,
+      price: data.price.present ? data.price.value : this.price,
+      availableForOrdering: data.availableForOrdering.present
+          ? data.availableForOrdering.value
+          : this.availableForOrdering,
       notes: data.notes.present ? data.notes.value : this.notes,
       imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -938,6 +1420,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('unit: $unit, ')
           ..write('minimumQuantity: $minimumQuantity, ')
           ..write('purchasePrice: $purchasePrice, ')
+          ..write('price: $price, ')
+          ..write('availableForOrdering: $availableForOrdering, ')
           ..write('notes: $notes, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('createdAt: $createdAt, ')
@@ -957,6 +1441,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     unit,
     minimumQuantity,
     purchasePrice,
+    price,
+    availableForOrdering,
     notes,
     imageUrl,
     createdAt,
@@ -975,6 +1461,8 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.unit == this.unit &&
           other.minimumQuantity == this.minimumQuantity &&
           other.purchasePrice == this.purchasePrice &&
+          other.price == this.price &&
+          other.availableForOrdering == this.availableForOrdering &&
           other.notes == this.notes &&
           other.imageUrl == this.imageUrl &&
           other.createdAt == this.createdAt &&
@@ -991,6 +1479,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<String> unit;
   final Value<double> minimumQuantity;
   final Value<double?> purchasePrice;
+  final Value<double?> price;
+  final Value<bool> availableForOrdering;
   final Value<String?> notes;
   final Value<String?> imageUrl;
   final Value<DateTime> createdAt;
@@ -1006,6 +1496,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.unit = const Value.absent(),
     this.minimumQuantity = const Value.absent(),
     this.purchasePrice = const Value.absent(),
+    this.price = const Value.absent(),
+    this.availableForOrdering = const Value.absent(),
     this.notes = const Value.absent(),
     this.imageUrl = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1022,6 +1514,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     required String unit,
     this.minimumQuantity = const Value.absent(),
     this.purchasePrice = const Value.absent(),
+    this.price = const Value.absent(),
+    this.availableForOrdering = const Value.absent(),
     this.notes = const Value.absent(),
     this.imageUrl = const Value.absent(),
     required DateTime createdAt,
@@ -1042,6 +1536,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<String>? unit,
     Expression<double>? minimumQuantity,
     Expression<double>? purchasePrice,
+    Expression<double>? price,
+    Expression<bool>? availableForOrdering,
     Expression<String>? notes,
     Expression<String>? imageUrl,
     Expression<DateTime>? createdAt,
@@ -1058,6 +1554,9 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       if (unit != null) 'unit': unit,
       if (minimumQuantity != null) 'minimum_quantity': minimumQuantity,
       if (purchasePrice != null) 'purchase_price': purchasePrice,
+      if (price != null) 'price': price,
+      if (availableForOrdering != null)
+        'available_for_ordering': availableForOrdering,
       if (notes != null) 'notes': notes,
       if (imageUrl != null) 'image_url': imageUrl,
       if (createdAt != null) 'created_at': createdAt,
@@ -1076,6 +1575,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<String>? unit,
     Value<double>? minimumQuantity,
     Value<double?>? purchasePrice,
+    Value<double?>? price,
+    Value<bool>? availableForOrdering,
     Value<String?>? notes,
     Value<String?>? imageUrl,
     Value<DateTime>? createdAt,
@@ -1092,6 +1593,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       unit: unit ?? this.unit,
       minimumQuantity: minimumQuantity ?? this.minimumQuantity,
       purchasePrice: purchasePrice ?? this.purchasePrice,
+      price: price ?? this.price,
+      availableForOrdering: availableForOrdering ?? this.availableForOrdering,
       notes: notes ?? this.notes,
       imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
@@ -1128,6 +1631,14 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     if (purchasePrice.present) {
       map['purchase_price'] = Variable<double>(purchasePrice.value);
     }
+    if (price.present) {
+      map['price'] = Variable<double>(price.value);
+    }
+    if (availableForOrdering.present) {
+      map['available_for_ordering'] = Variable<bool>(
+        availableForOrdering.value,
+      );
+    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -1160,6 +1671,8 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('unit: $unit, ')
           ..write('minimumQuantity: $minimumQuantity, ')
           ..write('purchasePrice: $purchasePrice, ')
+          ..write('price: $price, ')
+          ..write('availableForOrdering: $availableForOrdering, ')
           ..write('notes: $notes, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('createdAt: $createdAt, ')
@@ -1855,6 +2368,30 @@ class $CustomersTable extends Customers
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _societyMeta = const VerificationMeta(
+    'society',
+  );
+  @override
+  late final GeneratedColumn<String> society = GeneratedColumn<String>(
+    'society',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _activeMeta = const VerificationMeta('active');
+  @override
+  late final GeneratedColumn<bool> active = GeneratedColumn<bool>(
+    'active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
@@ -1905,6 +2442,8 @@ class $CustomersTable extends Customers
     phone,
     email,
     address,
+    society,
+    active,
     notes,
     createdAt,
     updatedAt,
@@ -1957,6 +2496,18 @@ class $CustomersTable extends Customers
       context.handle(
         _addressMeta,
         address.isAcceptableOrUnknown(data['address']!, _addressMeta),
+      );
+    }
+    if (data.containsKey('society')) {
+      context.handle(
+        _societyMeta,
+        society.isAcceptableOrUnknown(data['society']!, _societyMeta),
+      );
+    }
+    if (data.containsKey('active')) {
+      context.handle(
+        _activeMeta,
+        active.isAcceptableOrUnknown(data['active']!, _activeMeta),
       );
     }
     if (data.containsKey('notes')) {
@@ -2020,6 +2571,14 @@ class $CustomersTable extends Customers
         DriftSqlType.string,
         data['${effectivePrefix}address'],
       ),
+      society: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}society'],
+      ),
+      active: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}active'],
+      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -2052,6 +2611,8 @@ class Customer extends DataClass implements Insertable<Customer> {
   final String? phone;
   final String? email;
   final String? address;
+  final String? society;
+  final bool active;
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -2063,6 +2624,8 @@ class Customer extends DataClass implements Insertable<Customer> {
     this.phone,
     this.email,
     this.address,
+    this.society,
+    required this.active,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
@@ -2085,6 +2648,10 @@ class Customer extends DataClass implements Insertable<Customer> {
     if (!nullToAbsent || address != null) {
       map['address'] = Variable<String>(address);
     }
+    if (!nullToAbsent || society != null) {
+      map['society'] = Variable<String>(society);
+    }
+    map['active'] = Variable<bool>(active);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
@@ -2112,6 +2679,10 @@ class Customer extends DataClass implements Insertable<Customer> {
       address: address == null && nullToAbsent
           ? const Value.absent()
           : Value(address),
+      society: society == null && nullToAbsent
+          ? const Value.absent()
+          : Value(society),
+      active: Value(active),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -2135,6 +2706,8 @@ class Customer extends DataClass implements Insertable<Customer> {
       phone: serializer.fromJson<String?>(json['phone']),
       email: serializer.fromJson<String?>(json['email']),
       address: serializer.fromJson<String?>(json['address']),
+      society: serializer.fromJson<String?>(json['society']),
+      active: serializer.fromJson<bool>(json['active']),
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -2151,6 +2724,8 @@ class Customer extends DataClass implements Insertable<Customer> {
       'phone': serializer.toJson<String?>(phone),
       'email': serializer.toJson<String?>(email),
       'address': serializer.toJson<String?>(address),
+      'society': serializer.toJson<String?>(society),
+      'active': serializer.toJson<bool>(active),
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -2165,6 +2740,8 @@ class Customer extends DataClass implements Insertable<Customer> {
     Value<String?> phone = const Value.absent(),
     Value<String?> email = const Value.absent(),
     Value<String?> address = const Value.absent(),
+    Value<String?> society = const Value.absent(),
+    bool? active,
     Value<String?> notes = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -2176,6 +2753,8 @@ class Customer extends DataClass implements Insertable<Customer> {
     phone: phone.present ? phone.value : this.phone,
     email: email.present ? email.value : this.email,
     address: address.present ? address.value : this.address,
+    society: society.present ? society.value : this.society,
+    active: active ?? this.active,
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -2189,6 +2768,8 @@ class Customer extends DataClass implements Insertable<Customer> {
       phone: data.phone.present ? data.phone.value : this.phone,
       email: data.email.present ? data.email.value : this.email,
       address: data.address.present ? data.address.value : this.address,
+      society: data.society.present ? data.society.value : this.society,
+      active: data.active.present ? data.active.value : this.active,
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -2205,6 +2786,8 @@ class Customer extends DataClass implements Insertable<Customer> {
           ..write('phone: $phone, ')
           ..write('email: $email, ')
           ..write('address: $address, ')
+          ..write('society: $society, ')
+          ..write('active: $active, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2221,6 +2804,8 @@ class Customer extends DataClass implements Insertable<Customer> {
     phone,
     email,
     address,
+    society,
+    active,
     notes,
     createdAt,
     updatedAt,
@@ -2236,6 +2821,8 @@ class Customer extends DataClass implements Insertable<Customer> {
           other.phone == this.phone &&
           other.email == this.email &&
           other.address == this.address &&
+          other.society == this.society &&
+          other.active == this.active &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -2249,6 +2836,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
   final Value<String?> phone;
   final Value<String?> email;
   final Value<String?> address;
+  final Value<String?> society;
+  final Value<bool> active;
   final Value<String?> notes;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -2261,6 +2850,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
     this.address = const Value.absent(),
+    this.society = const Value.absent(),
+    this.active = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2274,6 +2865,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
     this.address = const Value.absent(),
+    this.society = const Value.absent(),
+    this.active = const Value.absent(),
     this.notes = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -2290,6 +2883,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Expression<String>? phone,
     Expression<String>? email,
     Expression<String>? address,
+    Expression<String>? society,
+    Expression<bool>? active,
     Expression<String>? notes,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -2303,6 +2898,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       if (phone != null) 'phone': phone,
       if (email != null) 'email': email,
       if (address != null) 'address': address,
+      if (society != null) 'society': society,
+      if (active != null) 'active': active,
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -2318,6 +2915,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Value<String?>? phone,
     Value<String?>? email,
     Value<String?>? address,
+    Value<String?>? society,
+    Value<bool>? active,
     Value<String?>? notes,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -2331,6 +2930,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       address: address ?? this.address,
+      society: society ?? this.society,
+      active: active ?? this.active,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -2360,6 +2961,12 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     if (address.present) {
       map['address'] = Variable<String>(address.value);
     }
+    if (society.present) {
+      map['society'] = Variable<String>(society.value);
+    }
+    if (active.present) {
+      map['active'] = Variable<bool>(active.value);
+    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -2387,6 +2994,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
           ..write('phone: $phone, ')
           ..write('email: $email, ')
           ..write('address: $address, ')
+          ..write('society: $society, ')
+          ..write('active: $active, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -3661,6 +4270,7 @@ class OrderItemsCompanion extends UpdateCompanion<OrderItem> {
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
+  late final $SocietiesTable societies = $SocietiesTable(this);
   late final $CategoriesTable categories = $CategoriesTable(this);
   late final $InventoryItemsTable inventoryItems = $InventoryItemsTable(this);
   late final $StockTransactionsTable stockTransactions =
@@ -3673,6 +4283,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
+    societies,
     categories,
     inventoryItems,
     stockTransactions,
@@ -3682,6 +4293,219 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
+typedef $$SocietiesTableCreateCompanionBuilder =
+    SocietiesCompanion Function({
+      required String id,
+      Value<String?> userId,
+      required String name,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$SocietiesTableUpdateCompanionBuilder =
+    SocietiesCompanion Function({
+      Value<String> id,
+      Value<String?> userId,
+      Value<String> name,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$SocietiesTableFilterComposer
+    extends Composer<_$AppDatabase, $SocietiesTable> {
+  $$SocietiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SocietiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SocietiesTable> {
+  $$SocietiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SocietiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SocietiesTable> {
+  $$SocietiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$SocietiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SocietiesTable,
+          Society,
+          $$SocietiesTableFilterComposer,
+          $$SocietiesTableOrderingComposer,
+          $$SocietiesTableAnnotationComposer,
+          $$SocietiesTableCreateCompanionBuilder,
+          $$SocietiesTableUpdateCompanionBuilder,
+          (Society, BaseReferences<_$AppDatabase, $SocietiesTable, Society>),
+          Society,
+          PrefetchHooks Function()
+        > {
+  $$SocietiesTableTableManager(_$AppDatabase db, $SocietiesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SocietiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SocietiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SocietiesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> userId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SocietiesCompanion(
+                id: id,
+                userId: userId,
+                name: name,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> userId = const Value.absent(),
+                required String name,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SocietiesCompanion.insert(
+                id: id,
+                userId: userId,
+                name: name,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SocietiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SocietiesTable,
+      Society,
+      $$SocietiesTableFilterComposer,
+      $$SocietiesTableOrderingComposer,
+      $$SocietiesTableAnnotationComposer,
+      $$SocietiesTableCreateCompanionBuilder,
+      $$SocietiesTableUpdateCompanionBuilder,
+      (Society, BaseReferences<_$AppDatabase, $SocietiesTable, Society>),
+      Society,
+      PrefetchHooks Function()
+    >;
 typedef $$CategoriesTableCreateCompanionBuilder =
     CategoriesCompanion Function({
       required String id,
@@ -3905,6 +4729,8 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       required String unit,
       Value<double> minimumQuantity,
       Value<double?> purchasePrice,
+      Value<double?> price,
+      Value<bool> availableForOrdering,
       Value<String?> notes,
       Value<String?> imageUrl,
       required DateTime createdAt,
@@ -3922,6 +4748,8 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<String> unit,
       Value<double> minimumQuantity,
       Value<double?> purchasePrice,
+      Value<double?> price,
+      Value<bool> availableForOrdering,
       Value<String?> notes,
       Value<String?> imageUrl,
       Value<DateTime> createdAt,
@@ -3976,6 +4804,16 @@ class $$InventoryItemsTableFilterComposer
 
   ColumnFilters<double> get purchasePrice => $composableBuilder(
     column: $table.purchasePrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get price => $composableBuilder(
+    column: $table.price,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get availableForOrdering => $composableBuilder(
+    column: $table.availableForOrdering,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4054,6 +4892,16 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get price => $composableBuilder(
+    column: $table.price,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get availableForOrdering => $composableBuilder(
+    column: $table.availableForOrdering,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -4119,6 +4967,14 @@ class $$InventoryItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get price =>
+      $composableBuilder(column: $table.price, builder: (column) => column);
+
+  GeneratedColumn<bool> get availableForOrdering => $composableBuilder(
+    column: $table.availableForOrdering,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
@@ -4176,6 +5032,8 @@ class $$InventoryItemsTableTableManager
                 Value<String> unit = const Value.absent(),
                 Value<double> minimumQuantity = const Value.absent(),
                 Value<double?> purchasePrice = const Value.absent(),
+                Value<double?> price = const Value.absent(),
+                Value<bool> availableForOrdering = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -4191,6 +5049,8 @@ class $$InventoryItemsTableTableManager
                 unit: unit,
                 minimumQuantity: minimumQuantity,
                 purchasePrice: purchasePrice,
+                price: price,
+                availableForOrdering: availableForOrdering,
                 notes: notes,
                 imageUrl: imageUrl,
                 createdAt: createdAt,
@@ -4208,6 +5068,8 @@ class $$InventoryItemsTableTableManager
                 required String unit,
                 Value<double> minimumQuantity = const Value.absent(),
                 Value<double?> purchasePrice = const Value.absent(),
+                Value<double?> price = const Value.absent(),
+                Value<bool> availableForOrdering = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
                 required DateTime createdAt,
@@ -4223,6 +5085,8 @@ class $$InventoryItemsTableTableManager
                 unit: unit,
                 minimumQuantity: minimumQuantity,
                 purchasePrice: purchasePrice,
+                price: price,
+                availableForOrdering: availableForOrdering,
                 notes: notes,
                 imageUrl: imageUrl,
                 createdAt: createdAt,
@@ -4577,6 +5441,8 @@ typedef $$CustomersTableCreateCompanionBuilder =
       Value<String?> phone,
       Value<String?> email,
       Value<String?> address,
+      Value<String?> society,
+      Value<bool> active,
       Value<String?> notes,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -4591,6 +5457,8 @@ typedef $$CustomersTableUpdateCompanionBuilder =
       Value<String?> phone,
       Value<String?> email,
       Value<String?> address,
+      Value<String?> society,
+      Value<bool> active,
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -4634,6 +5502,16 @@ class $$CustomersTableFilterComposer
 
   ColumnFilters<String> get address => $composableBuilder(
     column: $table.address,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get society => $composableBuilder(
+    column: $table.society,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get active => $composableBuilder(
+    column: $table.active,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4697,6 +5575,16 @@ class $$CustomersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get society => $composableBuilder(
+    column: $table.society,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get active => $composableBuilder(
+    column: $table.active,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -4745,6 +5633,12 @@ class $$CustomersTableAnnotationComposer
   GeneratedColumn<String> get address =>
       $composableBuilder(column: $table.address, builder: (column) => column);
 
+  GeneratedColumn<String> get society =>
+      $composableBuilder(column: $table.society, builder: (column) => column);
+
+  GeneratedColumn<bool> get active =>
+      $composableBuilder(column: $table.active, builder: (column) => column);
+
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
@@ -4792,6 +5686,8 @@ class $$CustomersTableTableManager
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> address = const Value.absent(),
+                Value<String?> society = const Value.absent(),
+                Value<bool> active = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -4804,6 +5700,8 @@ class $$CustomersTableTableManager
                 phone: phone,
                 email: email,
                 address: address,
+                society: society,
+                active: active,
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -4818,6 +5716,8 @@ class $$CustomersTableTableManager
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> address = const Value.absent(),
+                Value<String?> society = const Value.absent(),
+                Value<bool> active = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -4830,6 +5730,8 @@ class $$CustomersTableTableManager
                 phone: phone,
                 email: email,
                 address: address,
+                society: society,
+                active: active,
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -5468,6 +6370,8 @@ typedef $$OrderItemsTableProcessedTableManager =
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
+  $$SocietiesTableTableManager get societies =>
+      $$SocietiesTableTableManager(_db, _db.societies);
   $$CategoriesTableTableManager get categories =>
       $$CategoriesTableTableManager(_db, _db.categories);
   $$InventoryItemsTableTableManager get inventoryItems =>

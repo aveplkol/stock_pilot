@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Supabase credentials (use dart_define.example.json as a template)
+/dart_define.json
