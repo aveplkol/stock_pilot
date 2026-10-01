@@ -35,28 +35,47 @@ String _dayKey(DateTime d) =>
 String _dayLabel(DateTime d) =>
     '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
 
-/// Aggregates line items by "name (unit)" summing quantity and total.
-List<OrderReportItem> _aggregateItems(List<OrderReportRow> orders) {
-  final map = <String, OrderReportItem>{};
+/// Aggregated figures for a single product across many order lines.
+class _AggRow {
+  _AggRow(this.name, this.unit);
+  final String name;
+  final String unit;
+  double quantity = 0;
+  double purchaseTotal = 0; // sum(cost)
+  double sellTotal = 0; // sum(revenue)
+
+  double get avgPurchase => quantity == 0 ? 0 : purchaseTotal / quantity;
+  double get avgSell => quantity == 0 ? 0 : sellTotal / quantity;
+  double get profit => sellTotal - purchaseTotal;
+}
+
+/// Aggregates line items by "name (unit)" summing quantity, cost and revenue.
+List<_AggRow> _aggregateItems(List<OrderReportRow> orders) {
+  final map = <String, _AggRow>{};
   for (final o in orders) {
     for (final it in o.items) {
       final key = '${it.itemName}__${it.unit}';
-      final existing = map[key];
-      if (existing == null) {
-        map[key] = it;
-      } else {
-        map[key] = OrderReportItem(
-          itemName: it.itemName,
-          unit: it.unit,
-          quantity: existing.quantity + it.quantity,
-          total: existing.total + it.total,
-        );
-      }
+      final row = map.putIfAbsent(key, () => _AggRow(it.itemName, it.unit));
+      row.quantity += it.quantity;
+      row.purchaseTotal += it.cost;
+      row.sellTotal += it.total;
     }
   }
-  final list = map.values.toList()
-    ..sort((a, b) => a.itemName.compareTo(b.itemName));
+  final list = map.values.toList()..sort((a, b) => a.name.compareTo(b.name));
   return list;
+}
+
+double _sumRevenue(List<OrderReportRow> orders) =>
+    orders.fold<double>(0, (s, o) => s + o.total);
+
+double _sumProfit(List<OrderReportRow> orders) {
+  var profit = 0.0;
+  for (final o in orders) {
+    for (final it in o.items) {
+      profit += it.profit;
+    }
+  }
+  return profit;
 }
 
 String _fmtQty(double q) =>
@@ -324,7 +343,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   Widget _buildReport(BuildContext context, List<OrderReportRow> orders) {
-    final grandTotal = orders.fold<double>(0, (s, o) => s + o.total);
+    final grandTotal = _sumRevenue(orders);
+    final grandProfit = _sumProfit(orders);
 
     switch (_grouping) {
       case ReportGrouping.all:
@@ -334,6 +354,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           title: 'All societies',
           subtitle: '${orders.length} order(s)',
           amount: grandTotal,
+          profit: grandProfit,
           items: _aggregateItems(orders),
           initiallyExpanded: true,
           highlight: true,
@@ -352,17 +373,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               title: 'All societies',
               subtitle: '${orders.length} order(s)',
               amount: grandTotal,
+              profit: grandProfit,
             ),
             const SizedBox(height: 8),
             ...keys.map((society) {
               final rows = groups[society]!;
-              final total = rows.fold<double>(0, (s, o) => s + o.total);
               return _groupExpansion(
                 context,
                 icon: Icons.location_city_outlined,
                 title: society,
                 subtitle: '${rows.length} order(s)',
-                amount: total,
+                amount: _sumRevenue(rows),
+                profit: _sumProfit(rows),
                 items: _aggregateItems(rows),
               );
             }),
@@ -383,11 +405,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               title: 'All customers',
               subtitle: '${orders.length} order(s)',
               amount: grandTotal,
+              profit: grandProfit,
             ),
             const SizedBox(height: 8),
             ...keys.map((key) {
               final rows = groups[key]!;
-              final total = rows.fold<double>(0, (s, o) => s + o.total);
               final parts = key.split('__');
               return _groupExpansion(
                 context,
@@ -395,7 +417,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 title: parts.first,
                 subtitle:
                     '${parts.length > 1 ? parts[1] : ''} · ${rows.length} order(s)',
-                amount: total,
+                amount: _sumRevenue(rows),
+                profit: _sumProfit(rows),
                 items: _aggregateItems(rows),
               );
             }),
@@ -404,21 +427,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
   }
 
-  /// A group header with an item-level breakdown shown when expanded.
+  /// A group header with a tabular item breakdown shown when expanded.
   Widget _groupExpansion(
     BuildContext context, {
     required IconData icon,
     required String title,
     required String subtitle,
     required double amount,
-    required List<OrderReportItem> items,
+    required double profit,
+    required List<_AggRow> items,
     bool initiallyExpanded = false,
     bool highlight = false,
   }) {
+    final fg = highlight ? Colors.white : null;
+    final fg70 = highlight ? Colors.white70 : Colors.grey.shade600;
+
     return Card(
       color: highlight ? const Color(0xFF123D32) : null,
       child: Theme(
-        // Remove default dividers on the expansion tile.
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded: initiallyExpanded,
@@ -426,75 +452,124 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           collapsedIconColor: highlight ? Colors.white70 : null,
           leading: CircleAvatar(
             backgroundColor: highlight ? Colors.white24 : null,
-            child: Icon(icon, color: highlight ? Colors.white : null),
+            child: Icon(icon, color: fg),
           ),
           title: Text(
             title,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: highlight ? Colors.white : null,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w700, color: fg),
           ),
-          subtitle: Text(
-            subtitle,
-            style: TextStyle(
-              color: highlight ? Colors.white70 : Colors.grey.shade600,
-            ),
+          subtitle: Text(subtitle, style: TextStyle(color: fg70)),
+          trailing: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '₹${amount.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: fg,
+                ),
+              ),
+              Text(
+                'Profit ₹${profit.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: highlight
+                      ? Colors.greenAccent.shade100
+                      : Colors.green.shade700,
+                ),
+              ),
+            ],
           ),
-          trailing: Text(
-            '₹${amount.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: highlight ? Colors.white : null,
-            ),
-          ),
-          childrenPadding:
-              const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          children: items.isEmpty
-              ? [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'No items.',
-                      style: TextStyle(
-                        color: highlight
-                            ? Colors.white70
-                            : Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
-                ]
-              : items.map((it) {
-                  final line =
-                      '${it.itemName} - ${_fmtQty(it.quantity)}${it.unit} - '
-                      '₹${it.total.toStringAsFixed(2)}';
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.circle,
-                          size: 6,
-                          color: highlight
-                              ? Colors.white70
-                              : Colors.grey.shade500,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            line,
-                            style: TextStyle(
-                              color: highlight ? Colors.white : null,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          children: [
+            if (items.isEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('No items.', style: TextStyle(color: fg70)),
+              )
+            else
+              _itemsTable(context, items, highlight: highlight),
+          ],
         ),
       ),
+    );
+  }
+
+  /// Renders the per-product table: Product, Qty, Purchase, Sell, Total.
+  Widget _itemsTable(
+    BuildContext context,
+    List<_AggRow> items, {
+    required bool highlight,
+  }) {
+    final fg = highlight ? Colors.white : Colors.black87;
+    final fgHead = highlight ? Colors.white70 : Colors.grey.shade700;
+    final border = highlight ? Colors.white24 : Colors.grey.shade300;
+
+    Widget cell(
+      String text, {
+      bool header = false,
+      TextAlign align = TextAlign.left,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+        child: Text(
+          text,
+          textAlign: align,
+          softWrap: true,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: header ? FontWeight.w700 : FontWeight.w400,
+            color: header ? fgHead : fg,
+          ),
+        ),
+      );
+    }
+
+    // Fixed-fraction columns so all five (incl. Sell) always fit the width
+    // without horizontal scrolling — important on phone-sized APK screens.
+    const columnWidths = <int, TableColumnWidth>{
+      0: FlexColumnWidth(2.2), // Product
+      1: FlexColumnWidth(1.1), // Qty
+      2: FlexColumnWidth(1.3), // Purchase
+      3: FlexColumnWidth(1.3), // Sell
+      4: FlexColumnWidth(1.4), // Total
+    };
+
+    return Table(
+      columnWidths: columnWidths,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      border: TableBorder(
+        horizontalInside: BorderSide(color: border),
+        bottom: BorderSide(color: border),
+      ),
+      children: [
+        TableRow(
+          children: [
+            cell('Product', header: true),
+            cell('Qty', header: true, align: TextAlign.right),
+            cell('Purchase', header: true, align: TextAlign.right),
+            cell('Sell', header: true, align: TextAlign.right),
+            cell('Total', header: true, align: TextAlign.right),
+          ],
+        ),
+        ...items.map(
+          (r) => TableRow(
+            children: [
+              cell(r.name),
+              cell('${_fmtQty(r.quantity)} ${r.unit}',
+                  align: TextAlign.right),
+              cell('₹${r.avgPurchase.toStringAsFixed(2)}',
+                  align: TextAlign.right),
+              cell('₹${r.avgSell.toStringAsFixed(2)}',
+                  align: TextAlign.right),
+              cell('₹${r.sellTotal.toStringAsFixed(2)}',
+                  align: TextAlign.right),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -503,6 +578,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     required String title,
     required String subtitle,
     required double amount,
+    required double profit,
   }) {
     return Card(
       color: const Color(0xFF123D32),
@@ -530,13 +606,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ],
               ),
             ),
-            Text(
-              '₹${amount.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 20,
-                color: Colors.white,
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '₹${amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  'Profit ₹${profit.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.greenAccent.shade100,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

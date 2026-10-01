@@ -46,6 +46,9 @@ abstract class InventoryRepositoryBase {
   /// ADJUSTMENT transaction for the difference.
   Future<void> setQuantity(String itemId, double target);
 
+  /// Soft-deletes an inventory item (sets deletedAt).
+  Future<void> deleteItem(String itemId);
+
   Stream<List<StockTransaction>> watchHistory(String itemId);
 
   Future<void> ensureDefaultCategories();
@@ -225,6 +228,17 @@ class InventoryRepository implements InventoryRepositoryBase {
       'ADJUSTMENT',
       unit: item.unit,
       notes: 'Manual quantity set',
+    );
+  }
+
+  @override
+  Future<void> deleteItem(String itemId) async {
+    await (db.update(db.inventoryItems)..where((t) => t.id.equals(itemId)))
+        .write(
+      InventoryItemsCompanion(
+        deletedAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ),
     );
   }
 
@@ -435,13 +449,29 @@ class OrderReportItem {
     required this.itemName,
     required this.quantity,
     required this.unit,
+    required this.unitPrice,
+    required this.purchasePrice,
     required this.total,
   });
 
   final String itemName;
   final double quantity;
   final String unit;
+
+  /// Selling price per unit at the time of reporting (from the order line).
+  final double unitPrice;
+
+  /// Purchase (cost) price per unit, looked up from the inventory item.
+  final double purchasePrice;
+
+  /// Line revenue = quantity * unitPrice.
   final double total;
+
+  /// Line cost = quantity * purchasePrice.
+  double get cost => quantity * purchasePrice;
+
+  /// Line profit = revenue - cost.
+  double get profit => total - cost;
 }
 
 /// A single order with the denormalized customer name, society and the
@@ -522,10 +552,13 @@ class OrdersRepository {
         .watch();
 
     return ordersStream.asyncMap((rows) async {
-      // Load all order items and inventory names once per emission.
+      // Load all order items and inventory details once per emission.
       final allItems = await db.select(db.orderItems).get();
       final inventory = await db.select(db.inventoryItems).get();
       final nameById = {for (final i in inventory) i.id: i.name};
+      final purchaseById = {
+        for (final i in inventory) i.id: i.purchasePrice ?? 0.0,
+      };
 
       final itemsByOrder = <String, List<OrderReportItem>>{};
       for (final it in allItems) {
@@ -535,6 +568,8 @@ class OrdersRepository {
                     nameById[it.inventoryItemId] ?? 'Unknown item',
                 quantity: it.quantity,
                 unit: it.unit,
+                unitPrice: it.unitPrice,
+                purchasePrice: purchaseById[it.inventoryItemId] ?? 0.0,
                 total: it.total,
               ),
             );

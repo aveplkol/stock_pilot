@@ -87,6 +87,80 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       );
   }
 
+  Future<void> _forgotPassword() async {
+    final controller = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    final emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Reset password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                "Enter your account email and we'll send you a link to "
+                'reset your password.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+                onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Send reset link'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (email == null || email.isEmpty) return;
+
+    if (!emailRegex.hasMatch(email)) {
+      _showMessage('Enter a valid email address.');
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await ref.read(authRepositoryProvider).resetPassword(email);
+      if (mounted) {
+        _showMessage(
+          'If an account exists for $email, a password reset link has '
+          'been sent. Check your inbox.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showMessage(e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -154,6 +228,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           _signUp ? 'Create account' : 'Sign in',
                         ),
                       ),
+                      if (!_signUp) ...[
+                        const SizedBox(height: 4),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _loading ? null : _forgotPassword,
+                            child: const Text('Forgot password?'),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: _loading
