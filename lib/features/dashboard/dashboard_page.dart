@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../database/app_database.dart';
 import '../../database/repositories.dart';
 import '../../providers.dart';
-
-/// The grouping used by the Overview order report.
-enum ReportGrouping { all, society, customer }
-
-/// The time period used to filter the Overview order report.
-enum ReportPeriod { all, monthly, daily }
+import '../auth/user_profile.dart';
+import '../customers/customers_page.dart' show customerLabel;
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -22,15 +19,6 @@ const _monthNames = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
-
-String _monthKey(DateTime d) =>
-    '${d.year}-${d.month.toString().padLeft(2, '0')}';
-
-String _monthLabel(DateTime d) => '${_monthNames[d.month - 1]} ${d.year}';
-
-String _dayKey(DateTime d) =>
-    '${d.year}-${d.month.toString().padLeft(2, '0')}-'
-    '${d.day.toString().padLeft(2, '0')}';
 
 String _dayLabel(DateTime d) =>
     '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
@@ -82,12 +70,87 @@ String _fmtQty(double q) =>
     q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toString();
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
-  ReportGrouping _grouping = ReportGrouping.all;
-  ReportPeriod _period = ReportPeriod.all;
-  String? _periodKey; // selected 'yyyy-MM' (monthly) or 'yyyy-MM-dd' (daily)
+  // Filters. Dates default to tomorrow (next day's date).
+  late DateTime _startDate;
+  late DateTime _endDate;
+  String? _society; // null => All societies
+  String? _block; // null => All blocks
+  String? _customerId; // null => All customers
+
+  @override
+  void initState() {
+    super.initState();
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    _startDate = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+    _endDate = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+  }
+
+  bool _sameOrBefore(DateTime a, DateTime b) => !DateTime(a.year, a.month, a.day)
+      .isAfter(DateTime(b.year, b.month, b.day));
+
+  bool _inRange(DateTime d) {
+    final day = DateTime(d.year, d.month, d.day);
+    return _sameOrBefore(_startDate, day) && _sameOrBefore(day, _endDate);
+  }
+
+  Future<void> _pickStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = DateTime(picked.year, picked.month, picked.day);
+        if (_endDate.isBefore(_startDate)) _endDate = _startDate;
+      });
+    }
+  }
+
+  Future<void> _pickEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        _endDate = DateTime(picked.year, picked.month, picked.day);
+        if (_endDate.isBefore(_startDate)) _startDate = _endDate;
+      });
+    }
+  }
+
+  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(authRepositoryProvider).signOut();
+      // Router's auth listener redirects to /login.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(currentUserProfileProvider).value;
+    final isAdmin = profile?.role == AppRole.admin;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -105,51 +168,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
+                if (isAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    tooltip: 'Settings',
+                    onPressed: () => context.go('/settings'),
+                  ),
                 IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Settings',
-                  onPressed: () => context.go('/settings'),
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Sign out',
+                  onPressed: () => _confirmSignOut(context, ref),
                 ),
               ],
             ),
             const SizedBox(height: 6),
-            const Text('Your inventory and order activity at a glance.'),
-            const SizedBox(height: 28),
-
-            // Inventory stat cards.
-            StreamBuilder(
-              stream: ref.watch(inventoryRepositoryProvider).watchItems(),
-              builder: (context, snapshot) {
-                final items = snapshot.data ?? const [];
-                final low =
-                    items.where((i) => i.quantity <= i.minimumQuantity).length;
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isNarrow = constraints.maxWidth < 560;
-                    return Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      children: [
-                        _Stat(
-                          title: 'Inventory Items',
-                          value: '${items.length}',
-                          icon: Icons.inventory_2_outlined,
-                          width: isNarrow ? constraints.maxWidth : 260,
-                        ),
-                        _Stat(
-                          title: 'Low Stock',
-                          value: '$low',
-                          icon: Icons.warning_amber_outlined,
-                          width: isNarrow ? constraints.maxWidth : 260,
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-
-            const SizedBox(height: 32),
+            const Text('Your order activity at a glance.'),
+            const SizedBox(height: 24),
 
             // Order report section.
             Text(
@@ -161,177 +195,50 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             const SizedBox(height: 4),
             const Text('Totals and item breakdown of orders placed.'),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            StreamBuilder<List<OrderReportRow>>(
-              stream: ref.watch(ordersRepositoryProvider).watchOrderReport(),
-              builder: (context, snapshot) {
-                final all = snapshot.data ?? const <OrderReportRow>[];
-
-                // Build the available month and day options (desc).
-                final monthKeys = <String, DateTime>{};
-                final dayKeys = <String, DateTime>{};
-                for (final o in all) {
-                  monthKeys[_monthKey(o.orderDate)] =
-                      DateTime(o.orderDate.year, o.orderDate.month);
-                  dayKeys[_dayKey(o.orderDate)] = DateTime(
-                    o.orderDate.year,
-                    o.orderDate.month,
-                    o.orderDate.day,
-                  );
-                }
-                final sortedMonths = monthKeys.entries.toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
-                final sortedDays = dayKeys.entries.toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
-
-                // Apply period filter.
-                List<OrderReportRow> orders;
-                if (_period == ReportPeriod.monthly && _periodKey != null) {
-                  orders = all
-                      .where((o) => _monthKey(o.orderDate) == _periodKey)
-                      .toList();
-                } else if (_period == ReportPeriod.daily &&
-                    _periodKey != null) {
-                  orders = all
-                      .where((o) => _dayKey(o.orderDate) == _periodKey)
-                      .toList();
-                } else {
-                  orders = all;
-                }
-
+            // Filters + report (both depend on the customers list).
+            StreamBuilder<List<Customer>>(
+              stream: ref.watch(customersRepositoryProvider).watchCustomers(),
+              builder: (context, custSnap) {
+                final allCustomers =
+                    (custSnap.data ?? const <Customer>[]).toList();
+                final matchingIds = _matchingCustomerIds(allCustomers);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Grouping selector.
-                    SegmentedButton<ReportGrouping>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ReportGrouping.all,
-                          label: Text('All'),
-                          icon: Icon(Icons.summarize_outlined),
-                        ),
-                        ButtonSegment(
-                          value: ReportGrouping.society,
-                          label: Text('By society'),
-                          icon: Icon(Icons.location_city_outlined),
-                        ),
-                        ButtonSegment(
-                          value: ReportGrouping.customer,
-                          label: Text('By customer'),
-                          icon: Icon(Icons.person_outline),
-                        ),
-                      ],
-                      selected: {_grouping},
-                      onSelectionChanged: (s) =>
-                          setState(() => _grouping = s.first),
-                    ),
-                    const SizedBox(height: 12),
+                    _buildFilters(context, allCustomers),
+                    const SizedBox(height: 16),
+                    StreamBuilder<List<OrderReportRow>>(
+                      stream: ref
+                          .watch(ordersRepositoryProvider)
+                          .watchOrderReport(),
+                      builder: (context, snapshot) {
+                        final all =
+                            snapshot.data ?? const <OrderReportRow>[];
+                        final orders = all.where((o) {
+                          if (!_inRange(o.orderDate)) return false;
+                          if (matchingIds != null) {
+                            final id = o.customerId;
+                            if (id == null || !matchingIds.contains(id)) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        }).toList();
 
-                    // Period selector (All time / Monthly / Daily).
-                    SegmentedButton<ReportPeriod>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ReportPeriod.all,
-                          label: Text('All time'),
-                        ),
-                        ButtonSegment(
-                          value: ReportPeriod.monthly,
-                          label: Text('Monthly'),
-                        ),
-                        ButtonSegment(
-                          value: ReportPeriod.daily,
-                          label: Text('Daily'),
-                        ),
-                      ],
-                      selected: {_period},
-                      onSelectionChanged: (s) => setState(() {
-                        _period = s.first;
-                        // Default to the most recent period when switching.
-                        if (_period == ReportPeriod.monthly) {
-                          _periodKey = sortedMonths.isNotEmpty
-                              ? sortedMonths.first.key
-                              : null;
-                        } else if (_period == ReportPeriod.daily) {
-                          _periodKey = sortedDays.isNotEmpty
-                              ? sortedDays.first.key
-                              : null;
-                        } else {
-                          _periodKey = null;
+                        if (orders.isEmpty) {
+                          return const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child:
+                                  Text('No orders for this selection.'),
+                            ),
+                          );
                         }
-                      }),
+                        return _buildReport(context, orders);
+                      },
                     ),
-                    const SizedBox(height: 12),
-
-                    // Month/Day picker (only when a period is selected).
-                    if (_period == ReportPeriod.monthly)
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_month_outlined, size: 18),
-                          const SizedBox(width: 8),
-                          const Text('Month:'),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String?>(
-                              initialValue: _periodKey,
-                              isExpanded: true,
-                              decoration:
-                                  const InputDecoration(isDense: true),
-                              items: sortedMonths
-                                  .map(
-                                    (e) => DropdownMenuItem<String?>(
-                                      value: e.key,
-                                      child: Text(_monthLabel(e.value)),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _periodKey = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                    if (_period == ReportPeriod.daily)
-                      Row(
-                        children: [
-                          const Icon(Icons.today_outlined, size: 18),
-                          const SizedBox(width: 8),
-                          const Text('Day:'),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String?>(
-                              initialValue: _periodKey,
-                              isExpanded: true,
-                              decoration:
-                                  const InputDecoration(isDense: true),
-                              items: sortedDays
-                                  .map(
-                                    (e) => DropdownMenuItem<String?>(
-                                      value: e.key,
-                                      child: Text(_dayLabel(e.value)),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _periodKey = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                    if (_period != ReportPeriod.all)
-                      const SizedBox(height: 16)
-                    else
-                      const SizedBox(height: 4),
-
-                    if (orders.isEmpty)
-                      const Card(
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Text('No orders for this selection.'),
-                        ),
-                      )
-                    else
-                      _buildReport(context, orders),
                   ],
                 );
               },
@@ -342,89 +249,198 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
+  /// Returns the set of customer ids matching the current society/block/
+  /// customer selection, or `null` when "All" is selected across the board
+  /// (meaning: do not filter by customer).
+  Set<String>? _matchingCustomerIds(List<Customer> allCustomers) {
+    if (_society == null && _block == null && _customerId == null) {
+      return null;
+    }
+    if (_customerId != null) {
+      return {_customerId!};
+    }
+    var custs = allCustomers;
+    if (_society != null) {
+      custs = custs.where((c) => c.society == _society).toList();
+    }
+    if (_block != null) {
+      custs = custs.where((c) => (c.address ?? '').trim() == _block).toList();
+    }
+    return custs.map((c) => c.id).toSet();
+  }
+
+  Widget _buildFilters(BuildContext context, List<Customer> allCustomers) {
+    // Societies available.
+    final societies = {
+      for (final c in allCustomers)
+        if ((c.society ?? '').trim().isNotEmpty) c.society!.trim()
+    }.toList()
+      ..sort();
+
+    // Blocks available within the selected society (address = block).
+    final inSoc = _society == null
+        ? allCustomers
+        : allCustomers.where((c) => c.society == _society).toList();
+    final blocks = {
+      for (final c in inSoc)
+        if ((c.address ?? '').trim().isNotEmpty) c.address!.trim()
+    }.toList()
+      ..sort();
+
+    // Customers available within the selected society + block.
+    var custs = inSoc;
+    if (_block != null) {
+      custs = custs.where((c) => (c.address ?? '').trim() == _block).toList();
+    }
+    custs = custs.toList()
+      ..sort((a, b) {
+        final na = int.tryParse((a.flatNumber ?? '').trim());
+        final nb = int.tryParse((b.flatNumber ?? '').trim());
+        if (na != null && nb != null) return na.compareTo(nb);
+        return (a.flatNumber ?? '').compareTo(b.flatNumber ?? '');
+      });
+
+    // Keep the selected customer valid for the current society/block.
+    final validCustomerIds = custs.map((c) => c.id).toSet();
+    final selectedCustomerId =
+        (_customerId != null && validCustomerIds.contains(_customerId))
+            ? _customerId
+            : null;
+
+    InputDecoration dec(String label) => InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 560;
+
+        final startField = _DateField(
+          label: 'Start date',
+          value: _dayLabel(_startDate),
+          onTap: _pickStartDate,
+        );
+        final endField = _DateField(
+          label: 'End date',
+          value: _dayLabel(_endDate),
+          onTap: _pickEndDate,
+        );
+
+        final societyField = DropdownButtonFormField<String?>(
+          initialValue: _society,
+          isExpanded: true,
+          decoration: dec('Society'),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All societies')),
+            ...societies
+                .map((s) => DropdownMenuItem(value: s, child: Text(s))),
+          ],
+          onChanged: (v) => setState(() {
+            _society = v;
+            _block = null;
+            _customerId = null;
+          }),
+        );
+
+        final blockField = DropdownButtonFormField<String?>(
+          initialValue: _block,
+          isExpanded: true,
+          decoration: dec('Block'),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All blocks')),
+            ...blocks.map((b) => DropdownMenuItem(value: b, child: Text(b))),
+          ],
+          onChanged: (v) => setState(() {
+            _block = v;
+            _customerId = null;
+          }),
+        );
+
+        final customerField = DropdownButtonFormField<String?>(
+          initialValue: selectedCustomerId,
+          isExpanded: true,
+          decoration: dec('Customer'),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All customers')),
+            ...custs.map((c) =>
+                DropdownMenuItem(value: c.id, child: Text(customerLabel(c)))),
+          ],
+          onChanged: (v) => setState(() => _customerId = v),
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: startField),
+                  const SizedBox(width: 12),
+                  Expanded(child: endField),
+                ],
+              ),
+              const SizedBox(height: 12),
+              societyField,
+              const SizedBox(height: 12),
+              blockField,
+              const SizedBox(height: 12),
+              customerField,
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: startField),
+                const SizedBox(width: 12),
+                Expanded(child: endField),
+                const SizedBox(width: 12),
+                Expanded(child: societyField),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: blockField),
+                const SizedBox(width: 12),
+                Expanded(child: customerField),
+                const SizedBox(width: 12),
+                const Spacer(),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildReport(BuildContext context, List<OrderReportRow> orders) {
     final grandTotal = _sumRevenue(orders);
     final grandProfit = _sumProfit(orders);
 
-    switch (_grouping) {
-      case ReportGrouping.all:
-        return _groupExpansion(
-          context,
-          icon: Icons.summarize_outlined,
-          title: 'All societies',
-          subtitle: '${orders.length} order(s)',
-          amount: grandTotal,
-          profit: grandProfit,
-          items: _aggregateItems(orders),
-          initiallyExpanded: true,
-          highlight: true,
-        );
+    // A single consolidated report for the current selection.
+    return _groupExpansion(
+      context,
+      icon: Icons.summarize_outlined,
+      title: _selectionTitle(),
+      subtitle: '${orders.length} order(s)',
+      amount: grandTotal,
+      profit: grandProfit,
+      items: _aggregateItems(orders),
+      initiallyExpanded: true,
+      highlight: true,
+    );
+  }
 
-      case ReportGrouping.society:
-        final groups = <String, List<OrderReportRow>>{};
-        for (final o in orders) {
-          groups.putIfAbsent(o.society, () => []).add(o);
-        }
-        final keys = groups.keys.toList()..sort();
-        return Column(
-          children: [
-            _summaryCard(
-              context,
-              title: 'All societies',
-              subtitle: '${orders.length} order(s)',
-              amount: grandTotal,
-              profit: grandProfit,
-            ),
-            const SizedBox(height: 8),
-            ...keys.map((society) {
-              final rows = groups[society]!;
-              return _groupExpansion(
-                context,
-                icon: Icons.location_city_outlined,
-                title: society,
-                subtitle: '${rows.length} order(s)',
-                amount: _sumRevenue(rows),
-                profit: _sumProfit(rows),
-                items: _aggregateItems(rows),
-              );
-            }),
-          ],
-        );
-
-      case ReportGrouping.customer:
-        final groups = <String, List<OrderReportRow>>{};
-        for (final o in orders) {
-          final key = '${o.customerName}__${o.society}';
-          groups.putIfAbsent(key, () => []).add(o);
-        }
-        final keys = groups.keys.toList()..sort();
-        return Column(
-          children: [
-            _summaryCard(
-              context,
-              title: 'All customers',
-              subtitle: '${orders.length} order(s)',
-              amount: grandTotal,
-              profit: grandProfit,
-            ),
-            const SizedBox(height: 8),
-            ...keys.map((key) {
-              final rows = groups[key]!;
-              final parts = key.split('__');
-              return _groupExpansion(
-                context,
-                icon: Icons.person_outline,
-                title: parts.first,
-                subtitle:
-                    '${parts.length > 1 ? parts[1] : ''} · ${rows.length} order(s)',
-                amount: _sumRevenue(rows),
-                profit: _sumProfit(rows),
-                items: _aggregateItems(rows),
-              );
-            }),
-          ],
-        );
-    }
+  String _selectionTitle() {
+    final parts = <String>[];
+    parts.add(_society ?? 'All societies');
+    if (_block != null) parts.add(_block!);
+    return parts.join(' · ');
   }
 
   /// A group header with a tabular item breakdown shown when expanded.
@@ -527,8 +543,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       );
     }
 
-    // Fixed-fraction columns so all five (incl. Sell) always fit the width
-    // without horizontal scrolling — important on phone-sized APK screens.
     const columnWidths = <int, TableColumnWidth>{
       0: FlexColumnWidth(2.2), // Product
       1: FlexColumnWidth(1.1), // Qty
@@ -572,113 +586,31 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ],
     );
   }
-
-  Widget _summaryCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required double amount,
-    required double profit,
-  }) {
-    return Card(
-      color: const Color(0xFF123D32),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '₹${amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  'Profit ₹${profit.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.greenAccent.shade100,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({
-    required this.title,
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.label,
     required this.value,
-    required this.icon,
-    required this.width,
+    required this.onTap,
   });
 
-  final String title;
+  final String label;
   final String value;
-  final IconData icon;
-  final double width;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: 120,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Icon(icon, size: 30),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Text(
-                      value,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+          suffixIcon: const Icon(Icons.calendar_today, size: 18),
         ),
+        child: Text(value),
       ),
     );
   }

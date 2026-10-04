@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../providers.dart';
+import '../auth/user_profile.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -44,6 +46,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authRepositoryProvider);
     final user = auth.currentUser;
+    final profile = ref.watch(currentUserProfileProvider).value;
+    final isAdmin = profile?.role == AppRole.admin;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -57,11 +61,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               title: Text(user?.email ?? 'Not signed in'),
               subtitle: Text(
-                user != null ? 'Signed in' : 'No active session',
+                user != null
+                    ? 'Signed in · Role: ${profile?.role.label ?? '—'}'
+                    : 'No active session',
               ),
             ),
           ),
           const SizedBox(height: 8),
+          if (isAdmin)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.manage_accounts_outlined),
+                title: const Text('User Management'),
+                subtitle: const Text(
+                  'Add users and assign roles (admin only).',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.go('/users'),
+              ),
+            ),
+          if (isAdmin) const SizedBox(height: 8),
           Card(
             child: ListTile(
               leading: _syncing

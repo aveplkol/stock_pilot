@@ -57,13 +57,16 @@ class StockTransactions extends Table {
 class Customers extends Table {
   TextColumn get id => text()();
   TextColumn get userId => text().nullable()();
-  TextColumn get name => text()();
+  // Customer name is now optional (a flat number + block identifies them).
+  TextColumn get name => text().nullable()();
   TextColumn get phone => text().nullable()();
   TextColumn get email => text().nullable()();
-  // Repurposed as "Block Number" in the UI (column kept as `address`
-  // to avoid a destructive rename / data loss for existing rows).
+  // Legacy "address" column (kept for back-compat; no longer surfaced).
   TextColumn get address => text().nullable()();
+  // `society` holds the Block Name (mandatory in the UI).
   TextColumn get society => text().nullable()();
+  // Flat / house number within the block (mandatory in the UI).
+  TextColumn get flatNumber => text().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
@@ -98,5 +101,19 @@ class OrderItems extends Table {
   RealColumn get unitPrice => real()();
   RealColumn get total => real()();
   DateTimeColumn get createdAt => dateTime()();
+  @override Set<Column> get primaryKey => {id};
+}
+
+class Payments extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get customerId => text()();
+  RealColumn get amount => real()();
+  TextColumn get paymentMode => text()(); // UPI, Cash, Cheque, Bank Transfer
+  TextColumn get reference => text().nullable()(); // e.g. UPI ref, cheque number
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get paymentDate => dateTime()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
   @override Set<Column> get primaryKey => {id};
 }

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'database/app_database.dart';
 import 'database/repositories.dart';
 import 'features/auth/auth_repository.dart';
+import 'features/auth/user_profile.dart';
 import 'services/sync/sync_service.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -39,6 +40,12 @@ final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
   );
 });
 
+final paymentsRepositoryProvider = Provider<PaymentsRepository>((ref) {
+  return PaymentsRepository(
+    ref.watch(databaseProvider),
+  );
+});
+
 // ------------------------------------------------------------
 // Supabase
 // ------------------------------------------------------------
@@ -55,6 +62,21 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final authStateProvider = StreamProvider<AuthState>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges;
+});
+
+/// The currently signed-in user's profile (including role).
+///
+/// This is fetched once per session. Because it depends on
+/// [authStateProvider], it is automatically re-fetched whenever the auth
+/// state changes (sign-in / sign-out), which means **role changes take
+/// effect after the user signs out and back in** — matching the intended
+/// behaviour.
+final currentUserProfileProvider = FutureProvider<UserProfile?>((ref) async {
+  // Re-run whenever the auth state changes (login/logout).
+  ref.watch(authStateProvider);
+  final auth = ref.watch(authRepositoryProvider);
+  if (auth.currentUser == null) return null;
+  return auth.fetchCurrentUserProfile();
 });
 
 // ------------------------------------------------------------

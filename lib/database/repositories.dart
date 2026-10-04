@@ -10,6 +10,10 @@ abstract class InventoryRepositoryBase {
 
   Stream<List<Category>> watchCategories();
 
+  /// Adds a new category by name, preventing duplicates (case-insensitive).
+  /// Returns the existing category if one with the same name already exists.
+  Future<Category> addCategory(String name);
+
   Future<InventoryItem> createItem({
     required String name,
     required String unit,
@@ -79,6 +83,38 @@ class InventoryRepository implements InventoryRepositoryBase {
             (t) => OrderingTerm(expression: t.name),
       ]))
         .watch();
+  }
+
+  @override
+  Future<Category> addCategory(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('Category name cannot be empty');
+    }
+
+    // Prevent duplicates (case-insensitive) among non-deleted categories.
+    final existing = await (db.select(db.categories)
+          ..where((t) => t.deletedAt.isNull()))
+        .get();
+    final lower = trimmed.toLowerCase();
+    final dup = existing.where((c) => c.name.toLowerCase() == lower).toList();
+    if (dup.isNotEmpty) {
+      throw StateError('A category named "$trimmed" already exists.');
+    }
+
+    final now = DateTime.now();
+    final id = _uuid.v4();
+    await db.into(db.categories).insert(
+          CategoriesCompanion.insert(
+            id: id,
+            name: trimmed,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+
+    return (db.select(db.categories)..where((t) => t.id.equals(id)))
+        .getSingle();
   }
 
   @override
@@ -314,19 +350,20 @@ class SocietiesRepository {
         .get();
   }
 
-  /// Adds a new society by name. If a (non-deleted) society with the same
-  /// name already exists it is returned instead of creating a duplicate.
+  /// Adds a new society by name. Rejects duplicates (case-insensitive)
+  /// among non-deleted societies by throwing a [StateError].
   Future<Society> addSociety(String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
       throw ArgumentError('Society name cannot be empty');
     }
 
-    final existing = await (db.select(db.societies)
-          ..where((t) => t.deletedAt.isNull() & t.name.equals(trimmed)))
+    final all = await (db.select(db.societies)
+          ..where((t) => t.deletedAt.isNull()))
         .get();
-    if (existing.isNotEmpty) {
-      return existing.first;
+    final lower = trimmed.toLowerCase();
+    if (all.any((s) => s.name.toLowerCase() == lower)) {
+      throw StateError('A society named "$trimmed" already exists.');
     }
 
     final now = DateTime.now();
@@ -380,20 +417,21 @@ class CustomersRepository {
     return (db.select(db.customers)
       ..where((t) => t.deletedAt.isNull())
       ..orderBy([
-            (t) => OrderingTerm(
-          expression: t.name,
-        ),
+            (t) => OrderingTerm(expression: t.society),
+            (t) => OrderingTerm(expression: t.flatNumber),
+            (t) => OrderingTerm(expression: t.name),
       ]))
         .watch();
   }
 
   Future<void> save({
     String? id,
-    required String name,
+    String? name,
     String? phone,
     String? email,
     String? address,
     String? society,
+    String? flatNumber,
     bool active = true,
     String? notes,
   }) async {
@@ -403,11 +441,12 @@ class CustomersRepository {
       await db.into(db.customers).insert(
         CustomersCompanion.insert(
           id: _uuid.v4(),
-          name: name,
+          name: Value(name),
           phone: Value(phone),
           email: Value(email),
           address: Value(address),
           society: Value(society),
+          flatNumber: Value(flatNumber),
           active: Value(active),
           notes: Value(notes),
           createdAt: now,
@@ -424,6 +463,7 @@ class CustomersRepository {
           email: Value(email),
           address: Value(address),
           society: Value(society),
+          flatNumber: Value(flatNumber),
           active: Value(active),
           notes: Value(notes),
           updatedAt: Value(now),
@@ -512,6 +552,15 @@ class NewOrderLine {
   final double unitPrice;
 }
 
+/// An existing order loaded for editing: the order plus a map of
+/// inventoryItemId -> ordered quantity.
+class ExistingOrder {
+  const ExistingOrder({required this.order, required this.quantities});
+
+  final Order order;
+  final Map<String, double> quantities;
+}
+
 class OrdersRepository {
   OrdersRepository(this.db);
 
@@ -578,19 +627,166 @@ class OrdersRepository {
       return rows.map((row) {
         final order = row.readTable(db.orders);
         final customer = row.readTableOrNull(db.customers);
+        final flat = (customer?.flatNumber ?? '').trim();
+        final cname = (customer?.name ?? '').trim();
+        final label = flat.isNotEmpty && cname.isNotEmpty
+            ? '$flat - $cname'
+            : flat.isNotEmpty
+                ? flat
+                : cname.isNotEmpty
+                    ? cname
+                    : 'Walk-in / Unknown';
         return OrderReportRow(
           orderId: order.id,
           orderNumber: order.orderNumber,
           orderDate: order.orderDate,
           total: order.total,
           customerId: order.customerId,
-          customerName: customer?.name ?? 'Walk-in / Unknown',
+          customerName: label,
           society: (customer?.society == null || customer!.society!.isEmpty)
-              ? 'No society'
+              ? 'No block'
               : customer.society!,
           items: itemsByOrder[order.id] ?? const [],
         );
       }).toList();
+    });
+  }
+
+  /// Finds the most recent non-deleted order for [customerId] placed on the
+  /// same calendar day as [date], returning it with its item quantities so
+  /// the UI can pre-fill and update it. Returns null if none exists.
+  Future<ExistingOrder?> findOrderForCustomerOnDate(
+    String customerId,
+    DateTime date,
+  ) async {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    final order = await (db.select(db.orders)
+          ..where((t) =>
+              t.deletedAt.isNull() &
+              t.customerId.equals(customerId) &
+              t.orderDate.isBiggerOrEqualValue(dayStart) &
+              t.orderDate.isSmallerThanValue(dayEnd))
+          ..orderBy([
+            (t) => OrderingTerm(
+                  expression: t.createdAt,
+                  mode: OrderingMode.desc,
+                ),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+
+    if (order == null) return null;
+
+    final items = await (db.select(db.orderItems)
+          ..where((t) => t.orderId.equals(order.id)))
+        .get();
+
+    return ExistingOrder(
+      order: order,
+      quantities: {
+        for (final it in items) it.inventoryItemId: it.quantity,
+      },
+    );
+  }
+
+  /// Replaces all line items of an existing order with [lines], restoring and
+  /// re-applying stock accordingly. Recomputes totals.
+  Future<void> updateOrder({
+    required String orderId,
+    required List<NewOrderLine> lines,
+    double discount = 0,
+    String? notes,
+  }) async {
+    if (lines.isEmpty) {
+      throw ArgumentError('Order must contain at least one item');
+    }
+
+    await db.transaction(() async {
+      final now = DateTime.now();
+
+      // Restore stock from existing lines, then delete them.
+      final existing = await (db.select(db.orderItems)
+            ..where((t) => t.orderId.equals(orderId)))
+          .get();
+      for (final e in existing) {
+        await (db.update(db.inventoryItems)
+              ..where((t) => t.id.equals(e.inventoryItemId)))
+            .write(
+          InventoryItemsCompanion.custom(
+            quantity: db.inventoryItems.quantity + Variable(e.quantity),
+            updatedAt: Variable(now),
+          ),
+        );
+      }
+      await (db.delete(db.orderItems)
+            ..where((t) => t.orderId.equals(orderId)))
+          .go();
+      // Reverse the previous stock transactions for this order's number.
+      final order = await (db.select(db.orders)
+            ..where((t) => t.id.equals(orderId)))
+          .getSingle();
+
+      final subtotal = lines.fold<double>(
+        0,
+        (sum, line) => sum + line.quantity * line.unitPrice,
+      );
+      if (discount > subtotal) {
+        throw ArgumentError('Discount cannot exceed subtotal');
+      }
+
+      // Apply new lines.
+      for (final line in lines) {
+        final item = await (db.select(db.inventoryItems)
+              ..where((t) => t.id.equals(line.inventoryItemId)))
+            .getSingle();
+        if (line.quantity <= 0 || item.quantity < line.quantity) {
+          throw StateError('Insufficient stock for ${item.name}');
+        }
+        await db.into(db.orderItems).insert(
+              OrderItemsCompanion.insert(
+                id: _uuid.v4(),
+                orderId: orderId,
+                inventoryItemId: item.id,
+                quantity: line.quantity,
+                unit: line.unit,
+                unitPrice: line.unitPrice,
+                total: line.quantity * line.unitPrice,
+                createdAt: now,
+              ),
+            );
+        await (db.update(db.inventoryItems)
+              ..where((t) => t.id.equals(item.id)))
+            .write(
+          InventoryItemsCompanion(
+            quantity: Value(item.quantity - line.quantity),
+            updatedAt: Value(now),
+          ),
+        );
+        await db.into(db.stockTransactions).insert(
+              StockTransactionsCompanion.insert(
+                id: _uuid.v4(),
+                inventoryItemId: item.id,
+                transactionType: 'USED',
+                quantity: -line.quantity,
+                unit: line.unit,
+                notes: Value('Order ${order.orderNumber} (updated)'),
+                transactionDate: now,
+                createdAt: now,
+              ),
+            );
+      }
+
+      await (db.update(db.orders)..where((t) => t.id.equals(orderId))).write(
+        OrdersCompanion(
+          subtotal: Value(subtotal),
+          discount: Value(discount),
+          total: Value(subtotal - discount),
+          notes: Value(notes),
+          updatedAt: Value(now),
+        ),
+      );
     });
   }
 
@@ -600,6 +796,7 @@ class OrdersRepository {
     String status = 'DRAFT',
     double discount = 0,
     String? notes,
+    DateTime? orderDate,
   }) async {
     if (lines.isEmpty) {
       throw ArgumentError(
@@ -634,7 +831,7 @@ class OrdersRepository {
           discount: Value(discount),
           total: Value(subtotal - discount),
           notes: Value(notes),
-          orderDate: now,
+          orderDate: orderDate ?? now,
           createdAt: now,
           updatedAt: now,
         ),
@@ -694,5 +891,57 @@ class OrdersRepository {
 
       return id;
     });
+  }
+
+  /// Fetches all orders for a customer (used for ledger/outstanding calculation).
+  Future<List<Order>> getOrdersForCustomer(String customerId) {
+    return (db.select(db.orders)
+          ..where((t) => t.deletedAt.isNull() & t.customerId.equals(customerId))
+          ..orderBy([(t) => OrderingTerm(expression: t.orderDate, mode: OrderingMode.desc)]))
+        .get();
+  }
+}
+
+class PaymentsRepository {
+  PaymentsRepository(this.db);
+
+  final AppDatabase db;
+
+  /// Adds a new payment record.
+  Future<void> addPayment({
+    required String customerId,
+    required double amount,
+    required String paymentMode,
+    String? reference,
+    String? notes,
+    DateTime? paymentDate,
+  }) async {
+    final now = DateTime.now();
+    await db.into(db.payments).insert(
+      PaymentsCompanion.insert(
+        id: _uuid.v4(),
+        customerId: customerId,
+        amount: amount,
+        paymentMode: paymentMode,
+        reference: Value(reference),
+        notes: Value(notes),
+        paymentDate: paymentDate ?? now,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+  }
+
+  /// Fetches recent payments for a customer (up to [limit] records).
+  /// Only called on "View Ledger" click, as per requirements.
+  Future<List<Payment>> getRecentPaymentsForCustomer(
+    String customerId, {
+    int limit = 10,
+  }) {
+    return (db.select(db.payments)
+          ..where((t) => t.customerId.equals(customerId))
+          ..orderBy([(t) => OrderingTerm(expression: t.paymentDate, mode: OrderingMode.desc)])
+          ..limit(limit))
+        .get();
   }
 }

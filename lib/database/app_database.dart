@@ -7,7 +7,7 @@ part 'app_database.g.dart';
 
 @DriftDatabase(tables: [
   Societies, Categories, InventoryItems, StockTransactions,
-  Customers, Orders, OrderItems,
+  Customers, Orders, OrderItems, Payments,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
@@ -29,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,6 +56,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) {
             // v5: customer active/inactive flag.
             await m.addColumn(customers, customers.active);
+          }
+          if (from < 6) {
+            // v6: customer flat number (name is now nullable).
+            await m.addColumn(customers, customers.flatNumber);
+          }
+          if (from < 7) {
+            // v7: payments table (payment records).
+            await m.createTable(payments);
           }
         },
       );

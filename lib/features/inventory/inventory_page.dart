@@ -39,6 +39,7 @@ class InventoryPage extends ConsumerStatefulWidget {
 class _InventoryPageState extends ConsumerState<InventoryPage> {
   final _searchController = TextEditingController();
   String _query = '';
+  final Set<String> _collapsed = {}; // collapsed category keys
 
   @override
   void initState() {
@@ -77,11 +78,21 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                 final categories = catSnap.data ?? const [];
                 final catName = {for (final c in categories) c.id: c.name};
 
+                // Group items by category name.
+                final grouped = <String, List<InventoryItem>>{};
+                for (final it in items) {
+                  final key = it.categoryId != null
+                      ? (catName[it.categoryId] ?? 'Uncategorized')
+                      : 'Uncategorized';
+                  grouped.putIfAbsent(key, () => []).add(it);
+                }
+                final sortedKeys = grouped.keys.toList()..sort();
+
                 return CustomScrollView(
                   slivers: [
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -92,13 +103,13 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                                   .headlineMedium
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
                             _SearchAndAdd(
                               controller: _searchController,
                               onChanged: (v) => setState(() => _query = v),
                               onAdd: () => _openDialog(context),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 12),
                           ],
                         ),
                       ),
@@ -109,44 +120,14 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                         child: Center(child: Text('No inventory items yet')),
                       )
                     else
-                      SliverPadding(
-                        padding:
-                            const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                        sliver: SliverLayoutBuilder(
-                          builder: (context, constraints) {
-                            final w = constraints.crossAxisExtent;
-                            final cols = w >= 1100
-                                ? 4
-                                : w >= 820
-                                    ? 3
-                                    : w >= 560
-                                        ? 2
-                                        : 1;
-                            return SliverGrid(
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: cols,
-                                mainAxisSpacing: 16,
-                                crossAxisSpacing: 16,
-                                mainAxisExtent: 330,
-                              ),
-                              delegate: SliverChildBuilderDelegate(
-                                (context, i) {
-                                  final item = items[i];
-                                  return _ProductCard(
-                                    item: item,
-                                    categoryName:
-                                        catName[item.categoryId],
-                                    onEdit: () =>
-                                        _openDialog(context, item: item),
-                                  );
-                                },
-                                childCount: items.length,
-                              ),
-                            );
-                          },
+                      for (final cat in sortedKeys)
+                        _categorySliver(
+                          context,
+                          cat,
+                          grouped[cat]!,
+                          catName,
                         ),
-                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   ],
                 );
               },
@@ -154,6 +135,96 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _categorySliver(
+    BuildContext context,
+    String cat,
+    List<InventoryItem> items,
+    Map<String, String> catName,
+  ) {
+    final collapsed = _collapsed.contains(cat);
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: InkWell(
+            onTap: () => setState(() {
+              if (collapsed) {
+                _collapsed.remove(cat);
+              } else {
+                _collapsed.add(cat);
+              }
+            }),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    collapsed ? Icons.chevron_right : Icons.expand_more,
+                    color: Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      cat.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${items.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (!collapsed)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            sliver: SliverLayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.crossAxisExtent;
+                // Smaller tiles → more per row.
+                final cols = w >= 1200
+                    ? 5
+                    : w >= 900
+                        ? 4
+                        : w >= 620
+                            ? 3
+                            : 2;
+                return SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: cols,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    mainAxisExtent: 196,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final item = items[i];
+                      return _ProductCard(
+                        item: item,
+                        categoryName: catName[item.categoryId],
+                        onEdit: () => _openDialog(context, item: item),
+                      );
+                    },
+                    childCount: items.length,
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 
@@ -186,16 +257,14 @@ class _SearchAndAdd extends StatelessWidget {
         prefixIcon: Icon(Icons.search),
       ),
     );
-
     final addButton = FilledButton.icon(
       onPressed: onAdd,
       icon: const Icon(Icons.add),
       label: const Text('Add product'),
       style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       ),
     );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 520) {
@@ -203,7 +272,7 @@ class _SearchAndAdd extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               searchField,
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               addButton,
             ],
           );
@@ -211,7 +280,7 @@ class _SearchAndAdd extends StatelessWidget {
         return Row(
           children: [
             Expanded(child: searchField),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             addButton,
           ],
         );
@@ -236,7 +305,9 @@ class _ProductCard extends ConsumerWidget {
     final repo = ref.watch(inventoryRepositoryProvider);
     final inStock = item.quantity > 0;
     final low = item.quantity <= item.minimumQuantity;
-    final qtyLabel = '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity} in stock';
+    final qtyLabel =
+        '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity} '
+        'in stock';
 
     Future<void> adjust(double delta, String type) async {
       if (delta < 0 && item.quantity <= 0) return;
@@ -247,43 +318,41 @@ class _ProductCard extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tinted image header with status/delete.
           Stack(
             children: [
               Container(
-                height: 120,
+                height: 56,
                 width: double.infinity,
                 color: const Color(0xFFEAF1E7),
                 alignment: Alignment.center,
                 child: Text(
                   _emojiFor(item.name, categoryName),
-                  style: const TextStyle(fontSize: 56),
+                  style: const TextStyle(fontSize: 30),
                 ),
               ),
               Positioned(
-                top: 10,
-                right: 10,
+                top: 6,
+                right: 6,
                 child: inStock
                     ? Container(
-                        width: 12,
-                        height: 12,
+                        width: 10,
+                        height: 10,
                         decoration: const BoxDecoration(
                           color: Color(0xFF2E7D32),
                           shape: BoxShape.circle,
-                        ),
-                      )
+                        ),                      )
                     : InkWell(
                         onTap: () => _confirmDelete(context, ref),
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
-                          padding: const EdgeInsets.all(6),
+                          padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
@@ -296,7 +365,7 @@ class _ProductCard extends ConsumerWidget {
                           ),
                           child: Icon(
                             Icons.delete_outline,
-                            size: 18,
+                            size: 16,
                             color: Colors.red.shade400,
                           ),
                         ),
@@ -304,90 +373,129 @@ class _ProductCard extends ConsumerWidget {
               ),
             ],
           ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (categoryName ?? 'Uncategorized'),
-                  style: TextStyle(
-                    color: Colors.green.shade700,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '₹${item.price?.toStringAsFixed(2) ?? '0.00'}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (categoryName ?? 'Uncategorized'),
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
                     ),
-                    Text(
-                      qtyLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: (!inStock || low)
-                            ? Colors.orange.shade800
-                            : Colors.grey.shade600,
-                      ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _QtyStepper(
-                  value: item.quantity,
-                  onDecrement:
-                      item.quantity > 0 ? () => adjust(-1, 'USED') : null,
-                  onIncrement: () => adjust(1, 'PURCHASE'),
-                  onSet: (v) async {
-                    await repo.setQuantity(item.id, v);
-                    unawaited(ref.read(syncServiceProvider).autoPush());
-                  },
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: onEdit,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Edit details & photo',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          '\u20b9${item.price?.toStringAsFixed(2) ?? '0.00'}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.north_east,
-                        size: 16,
-                        color: Colors.green.shade700,
+                      Text(
+                        qtyLabel,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: (!inStock || low)
+                              ? Colors.orange.shade800
+                              : Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const Spacer(),
+                  Row(
+                    children: [
+                      _miniBtn(
+                        icon: Icons.remove,
+                        onPressed: item.quantity > 0
+                            ? () => adjust(-1, 'USED')
+                            : null,
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      _miniBtn(
+                        icon: Icons.add,
+                        onPressed: () => adjust(1, 'PURCHASE'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: onEdit,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Edit',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.north_east,
+                          size: 13,
+                          color: Colors.green.shade700,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _miniBtn({required IconData icon, VoidCallback? onPressed}) {
+    final enabled = onPressed != null;
+    return Material(
+      color: const Color(0xFFEAF1E7),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onPressed,
+        child: SizedBox(
+          width: 30,
+          height: 30,
+          child: Icon(
+            icon,
+            size: 18,
+            color: enabled ? const Color(0xFF123D32) : Colors.grey.shade400,
+          ),
+        ),
       ),
     );
   }
@@ -416,122 +524,6 @@ class _ProductCard extends ConsumerWidget {
     if (ok != true) return;
     await ref.read(inventoryRepositoryProvider).deleteItem(item.id);
     unawaited(ref.read(syncServiceProvider).autoPush());
-  }
-}
-
-/// A "− value +" stepper where the value is also directly editable.
-class _QtyStepper extends StatefulWidget {
-  const _QtyStepper({
-    required this.value,
-    required this.onIncrement,
-    required this.onDecrement,
-    required this.onSet,
-  });
-
-  final double value;
-  final VoidCallback onIncrement;
-  final VoidCallback? onDecrement;
-  final ValueChanged<double> onSet;
-
-  @override
-  State<_QtyStepper> createState() => _QtyStepperState();
-}
-
-class _QtyStepperState extends State<_QtyStepper> {
-  late final TextEditingController _controller;
-  final _focus = FocusNode();
-
-  String get _text => widget.value % 1 == 0
-      ? widget.value.toInt().toString()
-      : widget.value.toString();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: _text);
-    _focus.addListener(() {
-      if (!_focus.hasFocus) _commit();
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant _QtyStepper old) {
-    super.didUpdateWidget(old);
-    if (!_focus.hasFocus && _controller.text != _text) {
-      _controller.text = _text;
-    }
-  }
-
-  void _commit() {
-    final v = double.tryParse(_controller.text.trim());
-    if (v == null || v < 0) {
-      _controller.text = _text;
-      return;
-    }
-    if (v != widget.value) widget.onSet(v);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _roundBtn(
-          icon: Icons.remove,
-          onPressed: widget.onDecrement,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: SizedBox(
-            height: 44,
-            child: TextField(
-              controller: _controller,
-              focusNode: _focus,
-              textAlign: TextAlign.center,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
-              ),
-              onSubmitted: (_) => _commit(),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        _roundBtn(
-          icon: Icons.add,
-          onPressed: widget.onIncrement,
-        ),
-      ],
-    );
-  }
-
-  Widget _roundBtn({required IconData icon, VoidCallback? onPressed}) {
-    final enabled = onPressed != null;
-    return Material(
-      color: const Color(0xFFEAF1E7),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onPressed,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            icon,
-            color: enabled ? const Color(0xFF123D32) : Colors.grey.shade400,
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -637,8 +629,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              syncError ??
-                  (_isEdit ? 'Product updated.' : 'Product added.'),
+              syncError ?? (_isEdit ? 'Product updated.' : 'Product added.'),
             ),
             backgroundColor: syncError != null ? Colors.red.shade700 : null,
           ),
@@ -650,6 +641,37 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _promptAddCategory() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => const _AddCategoryDialog(),
+    );
+
+    if (name == null || name.isEmpty) return;
+
+    try {
+      final category =
+          await ref.read(inventoryRepositoryProvider).addCategory(name);
+      // Select the newly created category and push it to the cloud.
+      if (mounted) setState(() => _categoryId = category.id);
+      unawaited(ref.read(syncServiceProvider).autoPush());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Category "${category.name}" added.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red.shade700,
           ),
         );
       }
@@ -693,15 +715,13 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                             decimal: true,
                           ),
                           decoration: const InputDecoration(
-                            labelText: 'Purchase price (₹)',
+                            labelText: 'Purchase price (\u20b9)',
                           ),
                           validator: (v) {
                             final s = v?.trim() ?? '';
                             if (s.isEmpty) return null;
                             final value = double.tryParse(s);
-                            if (value == null || value < 0) {
-                              return 'Invalid';
-                            }
+                            if (value == null || value < 0) return 'Invalid';
                             return null;
                           },
                         ),
@@ -714,15 +734,13 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                             decimal: true,
                           ),
                           decoration: const InputDecoration(
-                            labelText: 'Sell price (₹)',
+                            labelText: 'Sell price (\u20b9)',
                           ),
                           validator: (v) {
                             final s = v?.trim() ?? '';
                             if (s.isEmpty) return null;
                             final value = double.tryParse(s);
-                            if (value == null || value < 0) {
-                              return 'Invalid';
-                            }
+                            if (value == null || value < 0) return 'Invalid';
                             return null;
                           },
                         ),
@@ -780,23 +798,36 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String?>(
-                    initialValue: selected,
-                    decoration:
-                        const InputDecoration(labelText: 'Category'),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Uncategorized'),
-                      ),
-                      ...categories.map(
-                        (c) => DropdownMenuItem<String?>(
-                          value: c.id,
-                          child: Text(c.name),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String?>(
+                          initialValue: selected,
+                          isExpanded: true,
+                          decoration:
+                              const InputDecoration(labelText: 'Category'),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Uncategorized'),
+                            ),
+                            ...categories.map(
+                              (c) => DropdownMenuItem<String?>(
+                                value: c.id,
+                                child: Text(c.name),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) => setState(() => _categoryId = v),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        tooltip: 'Add new category',
+                        icon: const Icon(Icons.add),
+                        onPressed: _promptAddCategory,
+                      ),
                     ],
-                    onChanged: (v) => setState(() => _categoryId = v),
                   ),
                   const SizedBox(height: 8),
                   CheckboxListTile(
@@ -804,8 +835,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                     controlAffinity: ListTileControlAffinity.leading,
                     title: const Text('Available for ordering'),
                     value: _available,
-                    onChanged: (v) =>
-                        setState(() => _available = v ?? true),
+                    onChanged: (v) => setState(() => _available = v ?? true),
                   ),
                 ],
               ),
@@ -824,11 +854,68 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(_isEdit ? 'Save product' : 'Save product'),
+                  : const Text('Save product'),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+/// Small dialog that collects a new category name. It owns its own
+/// [TextEditingController] and disposes it safely in [dispose] (after the
+/// dialog's exit animation), avoiding "used after being disposed" errors.
+class _AddCategoryDialog extends StatefulWidget {
+  const _AddCategoryDialog();
+
+  @override
+  State<_AddCategoryDialog> createState() => _AddCategoryDialogState();
+}
+
+class _AddCategoryDialogState extends State<_AddCategoryDialog> {
+  final _controller = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add category'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Category name'),
+          validator: (v) =>
+              v == null || v.trim().isEmpty ? 'Required' : null,
+          onFieldSubmitted: (_) {
+            if (_formKey.currentState!.validate()) {
+              Navigator.pop(context, _controller.text.trim());
+            }
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.pop(context, _controller.text.trim());
+            }
+          },
+          child: const Text('Add'),
+        ),
+      ],
     );
   }
 }

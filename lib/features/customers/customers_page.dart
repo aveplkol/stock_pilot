@@ -6,6 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../database/app_database.dart';
 import '../../providers.dart';
 
+/// Display label for a customer: "Flat - Name" (either part optional).
+String customerLabel(Customer c) {
+  final flat = (c.flatNumber ?? '').trim();
+  final name = (c.name ?? '').trim();
+  if (flat.isNotEmpty && name.isNotEmpty) return '$flat - $name';
+  if (flat.isNotEmpty) return flat;
+  if (name.isNotEmpty) return name;
+  return 'Unnamed customer';
+}
+
 class CustomersPage extends ConsumerStatefulWidget {
   const CustomersPage({super.key});
 
@@ -15,7 +25,7 @@ class CustomersPage extends ConsumerStatefulWidget {
 
 class _CustomersPageState extends ConsumerState<CustomersPage> {
   String? _societyFilter; // null = All societies
-  bool _showInactive = false; // hide inactive customers by default
+  bool _showInactive = false;
 
   @override
   Widget build(BuildContext context) {
@@ -31,14 +41,13 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
             icon: Icon(
               _showInactive ? Icons.visibility : Icons.visibility_off,
             ),
-            onPressed: () =>
-                setState(() => _showInactive = !_showInactive),
+            onPressed: () => setState(() => _showInactive = !_showInactive),
           ),
         ],
       ),
       body: Column(
         children: [
-          // Society filter chips (driven by the societies table).
+          // Society filter chips.
           StreamBuilder<List<Society>>(
             stream: societiesRepo.watchSocieties(),
             builder: (context, snapshot) {
@@ -67,130 +76,68 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
                       .toList();
                 }
                 if (!_showInactive) {
-                  customers =
-                      customers.where((c) => c.active).toList();
+                  customers = customers.where((c) => c.active).toList();
                 }
                 if (customers.isEmpty) {
                   return const Center(child: Text('No customers yet'));
                 }
-                return ListView.builder(
+
+                // Group by Block (address), sort blocks alphabetically and
+                // customers within each block by flat number (numeric-aware).
+                final groups = <String, List<Customer>>{};
+                for (final c in customers) {
+                  final block = (c.address ?? '').trim();
+                  groups.putIfAbsent(block.isEmpty ? 'No block' : block, () => [])
+                      .add(c);
+                }
+                final blockKeys = groups.keys.toList()
+                  ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                for (final k in blockKeys) {
+                  groups[k]!.sort((a, b) => _compareFlat(
+                        a.flatNumber ?? '',
+                        b.flatNumber ?? '',
+                      ));
+                }
+
+                return ListView(
                   padding: const EdgeInsets.all(16),
-                  itemCount: customers.length,
-                  itemBuilder: (_, i) {
-                    final customer = customers[i];
-                    return Opacity(
-                      opacity: customer.active ? 1 : 0.5,
-                      child: Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: customer.active
-                              ? null
-                              : Colors.grey.shade300,
-                          child: const Icon(Icons.person_outline),
-                        ),
-                        title: Row(
+                  children: [
+                    for (final block in blockKeys) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+                        child: Row(
                           children: [
-                            Flexible(child: Text(customer.name)),
-                            if (!customer.active) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'Inactive',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        subtitle: Text(
-                          [
-                            if ((customer.phone ?? '').isNotEmpty)
-                              customer.phone!,
-                            if ((customer.address ?? '').isNotEmpty)
-                              customer.address!,
-                          ].join(' · '),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if ((customer.society ?? '').isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.location_on_outlined,
-                                      size: 14,
-                                      color: Colors.green.shade800,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      customer.society!,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.green.shade800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            IconButton(
-                              icon: Icon(
-                                customer.active
-                                    ? Icons.toggle_on
-                                    : Icons.toggle_off,
-                                color: customer.active
-                                    ? Colors.green
-                                    : Colors.grey,
-                              ),
-                              tooltip: customer.active
-                                  ? 'Mark inactive'
-                                  : 'Mark active',
-                              onPressed: () async {
-                                await ref
-                                    .read(customersRepositoryProvider)
-                                    .setActive(
-                                      customer.id,
-                                      !customer.active,
-                                    );
-                                unawaited(
-                                  ref
-                                      .read(syncServiceProvider)
-                                      .autoPush(),
-                                );
-                              },
+                            Icon(
+                              Icons.apartment_outlined,
+                              size: 18,
+                              color: Colors.grey.shade700,
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              tooltip: 'Edit customer',
-                              onPressed: () => _openDialog(customer: customer),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Block $block'.replaceAll('Block No block',
+                                  'No block'),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey.shade800,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${groups[block]!.length}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
                             ),
                           ],
                         ),
-                        onTap: () => _openDialog(customer: customer),
                       ),
-                      ),
-                    );
-                  },
+                      ...groups[block]!.map(_customerTile),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
                 );
               },
             ),
@@ -217,6 +164,124 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
     );
   }
 
+  /// Compares two flat numbers numeric-aware (so "2" < "10"), falling back
+  /// to case-insensitive string compare for non-numeric values.
+  int _compareFlat(String a, String b) {
+    final na = int.tryParse(a.trim());
+    final nb = int.tryParse(b.trim());
+    if (na != null && nb != null) return na.compareTo(nb);
+    if (na != null) return -1; // numeric flats first
+    if (nb != null) return 1;
+    return a.toLowerCase().compareTo(b.toLowerCase());
+  }
+
+  Widget _customerTile(Customer customer) {
+    final flat = (customer.flatNumber ?? '').trim();
+    final name = (customer.name ?? '').trim();
+    final phone = (customer.phone ?? '').trim();
+
+    final details = <String>[
+      if (flat.isNotEmpty) 'Flat $flat',
+      if (phone.isNotEmpty) phone,
+    ].join('  ·  ');
+
+    final title = name.isNotEmpty
+        ? name
+        : (flat.isNotEmpty ? 'Flat $flat' : 'Unnamed');
+
+    return Opacity(
+      opacity: customer.active ? 1 : 0.5,
+      child: Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: customer.active ? null : Colors.grey.shade300,
+            child: const Icon(Icons.person_outline),
+          ),
+          title: Row(
+            children: [
+              Flexible(child: Text(title)),
+              if (!customer.active) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Inactive',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          subtitle: details.isEmpty ? null : Text(details),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if ((customer.society ?? '').isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.location_city_outlined,
+                        size: 14,
+                        color: Colors.green.shade800,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        customer.society!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              IconButton(
+                icon: Icon(
+                  customer.active ? Icons.toggle_on : Icons.toggle_off,
+                  color: customer.active ? Colors.green : Colors.grey,
+                ),
+                tooltip:
+                    customer.active ? 'Mark inactive' : 'Mark active',
+                onPressed: () async {
+                  await ref
+                      .read(customersRepositoryProvider)
+                      .setActive(customer.id, !customer.active);
+                  unawaited(ref.read(syncServiceProvider).autoPush());
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit customer',
+                onPressed: () => _openDialog(customer: customer),
+              ),
+            ],
+          ),
+          onTap: () => _openDialog(customer: customer),
+        ),
+      ),
+    );
+  }
+
   void _openDialog({Customer? customer}) {
     showDialog<void>(
       context: context,
@@ -234,16 +299,11 @@ class _CustomerDialog extends ConsumerStatefulWidget {
   ConsumerState<_CustomerDialog> createState() => _CustomerDialogState();
 }
 
-// Sentinel value used by the society dropdown to represent the
-// "Add new society…" action.
-const String _kAddNewSociety = '__add_new_society__';
-
 class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
+  late final TextEditingController _block;
+  late final TextEditingController _flatNumber;
   late final TextEditingController _name;
   late final TextEditingController _phone;
-  late final TextEditingController _email;
-  late final TextEditingController _address;
-  late final TextEditingController _notes;
   final _formKey = GlobalKey<FormState>();
   String? _society;
   bool _active = true;
@@ -255,89 +315,69 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
   void initState() {
     super.initState();
     final c = widget.customer;
+    _society = c?.society;
+    _block = TextEditingController(text: c?.address ?? '');
+    _flatNumber = TextEditingController(text: c?.flatNumber ?? '');
     _name = TextEditingController(text: c?.name ?? '');
     _phone = TextEditingController(text: c?.phone ?? '');
-    _email = TextEditingController(text: c?.email ?? '');
-    _address = TextEditingController(text: c?.address ?? '');
-    _notes = TextEditingController(text: c?.notes ?? '');
-    _society = c?.society;
     _active = c?.active ?? true;
   }
 
   @override
   void dispose() {
+    _block.dispose();
+    _flatNumber.dispose();
     _name.dispose();
     _phone.dispose();
-    _email.dispose();
-    _address.dispose();
-    _notes.dispose();
     super.dispose();
   }
 
-  /// Field decoration. Alignment/border/padding come from the global
-  /// [InputDecorationTheme] so every form in the app stays consistent.
   InputDecoration _decoration(String label, {String? hint}) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-    );
+    return InputDecoration(labelText: label, hintText: hint);
   }
 
   Future<void> _promptAddSociety() async {
-    final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Add society'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Society name',
-            ),
-            onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => const _AddSocietyDialog(),
     );
-
     if (name == null || name.isEmpty) return;
-
-    final society =
-        await ref.read(societiesRepositoryProvider).addSociety(name);
-    unawaited(ref.read(syncServiceProvider).autoPush());
-    if (mounted) {
-      setState(() => _society = society.name);
+    try {
+      final society =
+          await ref.read(societiesRepositoryProvider).addSociety(name);
+      unawaited(ref.read(syncServiceProvider).autoPush());
+      if (mounted) setState(() => _society = society.name);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_society == null || _society!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Society is required.')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
       await ref.read(customersRepositoryProvider).save(
             id: widget.customer?.id,
-            name: _name.text.trim(),
+            name: _name.text.trim().isEmpty ? null : _name.text.trim(),
             phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-            email: _email.text.trim().isEmpty ? null : _email.text.trim(),
-            address:
-                _address.text.trim().isEmpty ? null : _address.text.trim(),
             society: _society,
+            address: _block.text.trim().isEmpty ? null : _block.text.trim(),
+            flatNumber: _flatNumber.text.trim(),
             active: _active,
-            notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
           );
       final syncError = await ref.read(syncServiceProvider).autoPush();
       if (mounted) {
@@ -377,113 +417,82 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
-                controller: _name,
-                decoration: _decoration('Full name'),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _phone,
-                      keyboardType: TextInputType.phone,
-                      decoration: _decoration('Phone number'),
-                      validator: (v) {
-                        final value = v?.trim() ?? '';
-                        if (value.isEmpty) return null;
-                        if (!RegExp(r'^[+]?[\d\s-]{7,15}$').hasMatch(value)) {
-                          return 'Invalid phone';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _address,
-                      decoration: _decoration('Block Number'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                decoration: _decoration('Email'),
-                validator: (v) {
-                  final value = v?.trim() ?? '';
-                  if (value.isEmpty) return null;
-                  if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(value)) {
-                    return 'Enter a valid email address';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              // Society dropdown driven by the societies table, with an
-              // inline "Add new society…" action.
+              // Society (mandatory) — dropdown with add-new.
               StreamBuilder<List<Society>>(
                 stream: societiesRepo.watchSocieties(),
                 builder: (context, snapshot) {
                   final societies = snapshot.data ?? const <Society>[];
                   final names = societies.map((s) => s.name).toList();
-
-                  // If the current value is not in the list (e.g. a society
-                  // that was removed), keep it visible by appending it.
-                  final currentValue = _society;
-                  if (currentValue != null && !names.contains(currentValue)) {
-                    names.add(currentValue);
+                  final current = _society;
+                  if (current != null && !names.contains(current)) {
+                    names.add(current);
                   }
-
-                  return DropdownButtonFormField<String?>(
-                    initialValue: _society,
-                    isExpanded: true,
-                    decoration: _decoration('Society'),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('None'),
-                      ),
-                      ...names.map(
-                        (s) => DropdownMenuItem<String?>(
-                          value: s,
-                          child: Text(s),
-                        ),
-                      ),
-                      const DropdownMenuItem<String?>(
-                        value: _kAddNewSociety,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add, size: 18),
-                            SizedBox(width: 8),
-                            Text('Add new society…'),
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String?>(
+                          initialValue: _society,
+                          isExpanded: true,
+                          decoration: _decoration('Society *'),
+                          items: [
+                            ...names.map(
+                              (s) => DropdownMenuItem<String?>(
+                                value: s,
+                                child: Text(s),
+                              ),
+                            ),
                           ],
+                          onChanged: (v) => setState(() => _society = v),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        tooltip: 'Add new society',
+                        icon: const Icon(Icons.add),
+                        onPressed: _promptAddSociety,
                       ),
                     ],
-                    onChanged: (v) {
-                      if (v == _kAddNewSociety) {
-                        _promptAddSociety();
-                      } else {
-                        setState(() => _society = v);
-                      }
-                    },
                   );
                 },
               ),
               const SizedBox(height: 12),
+              // Block (mandatory).
               TextFormField(
-                controller: _notes,
-                decoration: _decoration('Notes'),
-                maxLines: 2,
-                minLines: 1,
+                controller: _block,
+                decoration: _decoration('Block *'),
+                textCapitalization: TextCapitalization.characters,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              // Flat Number (mandatory).
+              TextFormField(
+                controller: _flatNumber,
+                decoration: _decoration('Flat number *'),
+                textCapitalization: TextCapitalization.characters,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              // Customer name (optional).
+              TextFormField(
+                controller: _name,
+                decoration: _decoration('Customer name (optional)'),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phone,
+                keyboardType: TextInputType.phone,
+                decoration: _decoration('Phone number'),
+                validator: (v) {
+                  final value = v?.trim() ?? '';
+                  if (value.isEmpty) return null;
+                  if (!RegExp(r'^[+]?[\d\s-]{7,15}$').hasMatch(value)) {
+                    return 'Invalid phone';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 4),
               SwitchListTile(
@@ -515,6 +524,62 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Save customer'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Small dialog that collects a new society name. Owns and disposes its own
+/// [TextEditingController] safely (after the dialog's exit animation),
+/// avoiding "used after being disposed" errors.
+class _AddSocietyDialog extends StatefulWidget {
+  const _AddSocietyDialog();
+
+  @override
+  State<_AddSocietyDialog> createState() => _AddSocietyDialogState();
+}
+
+class _AddSocietyDialogState extends State<_AddSocietyDialog> {
+  final _controller = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_formKey.currentState!.validate()) {
+      Navigator.pop(context, _controller.text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add society'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Society name'),
+          validator: (v) =>
+              v == null || v.trim().isEmpty ? 'Required' : null,
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Add'),
         ),
       ],
     );
