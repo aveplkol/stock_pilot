@@ -3,30 +3,27 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/product_icons.dart';
 import '../../database/app_database.dart';
 import '../../providers.dart';
+import 'widgets/icon_picker.dart';
 
-/// Picks a representative emoji for a product from its name/category.
-String _emojiFor(String name, String? category) {
-  final n = name.toLowerCase();
-  final c = (category ?? '').toLowerCase();
-  bool has(String s) => n.contains(s) || c.contains(s);
+/// Returns the emoji to display for a product: the user-selected emoji if
+/// present, otherwise one auto-derived from the product's name/category.
+String _emojiForItem(InventoryItem item, String? categoryName) {
+  if (item.iconName != null && item.iconName!.isNotEmpty) {
+    return ProductIcons.resolve(item.iconName);
+  }
+  return ProductIcons.autoEmojiFor(item.name, categoryName);
+}
 
-  if (has('milk')) return '🥛';
-  if (has('bread') || has('loaf') || has('bakery')) return '🍞';
-  if (has('egg')) return '🥚';
-  if (has('rice')) return '🍚';
-  if (has('oil')) return '🫗';
-  if (has('water')) return '💧';
-  if (has('fruit') || has('apple')) return '🍎';
-  if (has('vegetable') || has('veg')) return '🥦';
-  if (has('tea')) return '🍵';
-  if (has('coffee')) return '☕';
-  if (has('sugar') || has('salt') || has('pantry')) return '🧂';
-  if (has('clean')) return '🧼';
-  if (has('medicine') || has('medicines')) return '💊';
-  if (has('household')) return '🧺';
-  return '📦';
+/// Builds the visual used in a product's header: the user-selected emoji, or
+/// the emoji auto-derived from the name/category.
+Widget _productGlyph(InventoryItem item, String? categoryName) {
+  return Text(
+    _emojiForItem(item, categoryName),
+    style: const TextStyle(fontSize: 30),
+  );
 }
 
 class InventoryPage extends ConsumerStatefulWidget {
@@ -40,6 +37,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
   final _searchController = TextEditingController();
   String _query = '';
   final Set<String> _collapsed = {}; // collapsed category keys
+  bool _showDeleted = false;
 
   @override
   void initState() {
@@ -61,79 +59,110 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: StreamBuilder<List<InventoryItem>>(
-          stream: repo.watchItems(),
-          builder: (context, snapshot) {
-            final allItems = snapshot.data ?? const <InventoryItem>[];
-            final items = _query.isEmpty
-                ? allItems
-                : allItems
-                    .where((i) =>
-                        i.name.toLowerCase().contains(_query.toLowerCase()))
-                    .toList();
+        child: _showDeleted
+            ? _DeletedItemsView(
+                onBack: () => setState(() => _showDeleted = false))
+            : StreamBuilder<List<InventoryItem>>(
+                stream: repo.watchItems(),
+                builder: (context, snapshot) {
+                  final allItems = snapshot.data ?? const <InventoryItem>[];
+                  final items = _query.isEmpty
+                      ? allItems
+                      : allItems
+                          .where((i) => i.name
+                              .toLowerCase()
+                              .contains(_query.toLowerCase()))
+                          .toList();
 
-            return StreamBuilder<List<Category>>(
-              stream: repo.watchCategories(),
-              builder: (context, catSnap) {
-                final categories = catSnap.data ?? const [];
-                final catName = {for (final c in categories) c.id: c.name};
+                  return StreamBuilder<List<Category>>(
+                    stream: repo.watchCategories(),
+                    builder: (context, catSnap) {
+                      final categories = catSnap.data ?? const [];
+                      final catName = {
+                        for (final c in categories) c.id: c.name
+                      };
 
-                // Group items by category name.
-                final grouped = <String, List<InventoryItem>>{};
-                for (final it in items) {
-                  final key = it.categoryId != null
-                      ? (catName[it.categoryId] ?? 'Uncategorized')
-                      : 'Uncategorized';
-                  grouped.putIfAbsent(key, () => []).add(it);
-                }
-                final sortedKeys = grouped.keys.toList()..sort();
+                      // Group items by category name.
+                      final grouped = <String, List<InventoryItem>>{};
+                      for (final it in items) {
+                        final key = it.categoryId != null
+                            ? (catName[it.categoryId] ?? 'Uncategorized')
+                            : 'Uncategorized';
+                        grouped.putIfAbsent(key, () => []).add(it);
+                      }
+                      final sortedKeys = grouped.keys.toList()..sort();
 
-                return CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Inventory',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
-                                  ?.copyWith(fontWeight: FontWeight.w800),
+                      return CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Inventory',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .headlineMedium
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.w800),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Show deleted items',
+                                        icon:
+                                            const Icon(Icons.visibility_off),
+                                        onPressed: () => setState(
+                                            () => _showDeleted = true),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Manage categories',
+                                        icon: const Icon(
+                                            Icons.category_outlined),
+                                        onPressed: () =>
+                                            _openCategoryManager(context),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _SearchAndAdd(
+                                    controller: _searchController,
+                                    onChanged: (v) =>
+                                        setState(() => _query = v),
+                                    onAdd: () => _openDialog(context),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            _SearchAndAdd(
-                              controller: _searchController,
-                              onChanged: (v) => setState(() => _query = v),
-                              onAdd: () => _openDialog(context),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (items.isEmpty)
-                      const SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: Center(child: Text('No inventory items yet')),
-                      )
-                    else
-                      for (final cat in sortedKeys)
-                        _categorySliver(
-                          context,
-                          cat,
-                          grouped[cat]!,
-                          catName,
-                        ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                  ],
-                );
-              },
-            );
-          },
-        ),
+                          ),
+                          if (items.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                  child: Text('No inventory items yet')),
+                            )
+                          else
+                            for (final cat in sortedKeys)
+                              _categorySliver(
+                                context,
+                                cat,
+                                grouped[cat]!,
+                                catName,
+                              ),
+                          const SliverToBoxAdapter(
+                              child: SizedBox(height: 24)),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
       ),
     );
   }
@@ -194,7 +223,6 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
             sliver: SliverLayoutBuilder(
               builder: (context, constraints) {
                 final w = constraints.crossAxisExtent;
-                // Smaller tiles → more per row.
                 final cols = w >= 1200
                     ? 5
                     : w >= 900
@@ -232,6 +260,13 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     showDialog<void>(
       context: context,
       builder: (_) => _ProductDialog(item: item),
+    );
+  }
+
+  void _openCategoryManager(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => const _CategoryManagerDialog(),
     );
   }
 }
@@ -332,45 +367,47 @@ class _ProductCard extends ConsumerWidget {
                 width: double.infinity,
                 color: const Color(0xFFEAF1E7),
                 alignment: Alignment.center,
-                child: Text(
-                  _emojiFor(item.name, categoryName),
-                  style: const TextStyle(fontSize: 30),
-                ),
+                child: _productGlyph(item, categoryName),
               ),
               Positioned(
                 top: 6,
                 right: 6,
-                child: inStock
-                    ? Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF2E7D32),
-                          shape: BoxShape.circle,
-                        ),                      )
-                    : InkWell(
-                        onTap: () => _confirmDelete(context, ref),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.delete_outline,
-                            size: 16,
-                            color: Colors.red.shade400,
-                          ),
+                child: InkWell(
+                  onTap: () => _confirmDelete(context, ref),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 4,
                         ),
-                      ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 16,
+                      color: Colors.red.shade400,
+                    ),
+                  ),
+                ),
               ),
+              if (inStock)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2E7D32),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
             ],
           ),
           Expanded(
@@ -527,6 +564,135 @@ class _ProductCard extends ConsumerWidget {
   }
 }
 
+/// A view that lists soft-deleted products with options to restore or
+/// permanently delete each one. Shown when the user taps the "show deleted"
+/// (crossed-eye) icon in the inventory header.
+class _DeletedItemsView extends ConsumerWidget {
+  const _DeletedItemsView({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repo = ref.watch(inventoryRepositoryProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back to inventory',
+                onPressed: onBack,
+              ),
+              Expanded(
+                child: Text(
+                  'Deleted products',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              const Icon(Icons.visibility),
+            ],
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<InventoryItem>>(
+            stream: repo.watchDeletedItems(),
+            builder: (context, snapshot) {
+              final items = snapshot.data ?? const <InventoryItem>[];
+              if (items.isEmpty) {
+                return const Center(child: Text('No deleted products'));
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, i) {
+                  final item = items[i];
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFEAF1E7),
+                        child: Text(
+                          _emojiForItem(item, null),
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                      ),
+                      title: Text(item.name),
+                      subtitle: Text(
+                        'Deleted ${item.deletedAt?.toLocal().toString().split('.').first ?? ''}',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.restore,
+                                color: Colors.green),
+                            tooltip: 'Restore',
+                            onPressed: () async {
+                              await repo.restoreItem(item.id);
+                              unawaited(
+                                  ref.read(syncServiceProvider).autoPush());
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.delete_forever,
+                                color: Colors.red.shade700),
+                            tooltip: 'Delete permanently',
+                            onPressed: () =>
+                                _confirmPurge(context, ref, item),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmPurge(
+    BuildContext context,
+    WidgetRef ref,
+    InventoryItem item,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete permanently?'),
+        content: Text(
+          'Permanently remove "${item.name}"? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete forever'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(inventoryRepositoryProvider).purgeItem(item.id);
+    unawaited(ref.read(syncServiceProvider).autoPush());
+  }
+}
+
 class _ProductDialog extends ConsumerStatefulWidget {
   const _ProductDialog({this.item});
 
@@ -548,6 +714,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
   String? _categoryId;
   bool _available = true;
   bool _saving = false;
+  String? _iconName;
 
   bool get _isEdit => widget.item != null;
 
@@ -573,6 +740,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
     _unit = it?.unit ?? 'pcs';
     _categoryId = it?.categoryId;
     _available = it?.availableForOrdering ?? true;
+    _iconName = it?.iconName;
   }
 
   @override
@@ -583,6 +751,12 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
     _quantity.dispose();
     _minimum.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickIcon() async {
+    final result = await showProductIconPicker(context, selected: _iconName);
+    if (result == null) return; // cancelled
+    setState(() => _iconName = result.isEmpty ? null : result);
   }
 
   Future<void> _save(List<Category> categories) async {
@@ -606,6 +780,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
           categoryId: _categoryId,
           purchasePrice: purchasePrice,
           notes: widget.item!.notes,
+          iconName: _iconName,
         );
         final target = double.tryParse(_quantity.text.trim());
         if (target != null && target != widget.item!.quantity) {
@@ -621,6 +796,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
           price: price,
           availableForOrdering: _available,
           categoryId: _categoryId,
+          iconName: _iconName,
         );
       }
       final syncError = await ref.read(syncServiceProvider).autoPush();
@@ -658,7 +834,6 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
     try {
       final category =
           await ref.read(inventoryRepositoryProvider).addCategory(name);
-      // Select the newly created category and push it to the cloud.
       if (mounted) setState(() => _categoryId = category.id);
       unawaited(ref.read(syncServiceProvider).autoPush());
       if (mounted) {
@@ -698,6 +873,40 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Icon picker row.
+                  Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF1E7),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _iconName != null && _iconName!.isNotEmpty
+                              ? ProductIcons.resolve(_iconName)
+                              : ProductIcons.autoEmojiFor(
+                                  _name.text, null),
+                          style: const TextStyle(fontSize: 26),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _pickIcon,
+                          icon: const Icon(Icons.emoji_symbols_outlined),
+                          label: Text(
+                            _iconName == null
+                                ? 'Choose an icon'
+                                : 'Change icon',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: _name,
                     decoration:
@@ -860,6 +1069,195 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
         );
       },
     );
+  }
+}
+
+/// Dialog listing active and deleted categories with soft-delete, restore
+/// and permanent-delete controls.
+class _CategoryManagerDialog extends ConsumerWidget {
+  const _CategoryManagerDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repo = ref.watch(inventoryRepositoryProvider);
+    return AlertDialog(
+      title: const Text('Manage categories'),
+      content: SizedBox(
+        width: 380,
+        height: 420,
+        child: Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<List<Category>>(
+                stream: repo.watchCategories(),
+                builder: (context, snap) {
+                  final cats = snap.data ?? const <Category>[];
+                  return StreamBuilder<List<Category>>(
+                    stream: repo.watchDeletedCategories(),
+                    builder: (context, delSnap) {
+                      final deleted = delSnap.data ?? const <Category>[];
+                      if (cats.isEmpty && deleted.isEmpty) {
+                        return const Center(child: Text('No categories'));
+                      }
+                      return ListView(
+                        children: [
+                          if (cats.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'ACTIVE',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            ...cats.map(
+                              (c) => ListTile(
+                                dense: true,
+                                title: Text(c.name),
+                                trailing: IconButton(
+                                  icon: Icon(Icons.delete_outline,
+                                      color: Colors.red.shade400),
+                                  tooltip: 'Delete category',
+                                  onPressed: () =>
+                                      _confirmDelete(context, ref, c),
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (deleted.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'DELETED',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            ...deleted.map(
+                              (c) => ListTile(
+                                dense: true,
+                                title: Text(
+                                  c.name,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.restore,
+                                          color: Colors.green),
+                                      tooltip: 'Restore',
+                                      onPressed: () async {
+                                        await repo.restoreCategory(c.id);
+                                        unawaited(ref
+                                            .read(syncServiceProvider)
+                                            .autoPush());
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_forever,
+                                          color: Colors.red.shade700),
+                                      tooltip: 'Delete permanently',
+                                      onPressed: () =>
+                                          _confirmPurge(context, ref, c),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Category c,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete category?'),
+        content: Text('Remove "${c.name}" from categories?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(inventoryRepositoryProvider).deleteCategory(c.id);
+    unawaited(ref.read(syncServiceProvider).autoPush());
+  }
+
+  Future<void> _confirmPurge(
+    BuildContext context,
+    WidgetRef ref,
+    Category c,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete permanently?'),
+        content: Text(
+          'Permanently remove "${c.name}"? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete forever'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(inventoryRepositoryProvider).purgeCategory(c.id);
+    unawaited(ref.read(syncServiceProvider).autoPush());
   }
 }
 

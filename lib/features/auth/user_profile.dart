@@ -48,6 +48,7 @@ class UserProfile {
     required this.email,
     required this.role,
     this.name,
+    this.companyCode,
   });
 
   final String id;
@@ -55,12 +56,16 @@ class UserProfile {
   final AppRole role;
   final String? name;
 
+  /// The company/tenant this user belongs to (multi-tenancy).
+  final String? companyCode;
+
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     return UserProfile(
       id: map['id'] as String,
       email: (map['email'] as String?) ?? '',
       role: AppRole.fromString(map['role'] as String?),
       name: map['name'] as String?,
+      companyCode: map['company_code'] as String?,
     );
   }
 

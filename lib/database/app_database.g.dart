@@ -950,6 +950,17 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _iconNameMeta = const VerificationMeta(
+    'iconName',
+  );
+  @override
+  late final GeneratedColumn<String> iconName = GeneratedColumn<String>(
+    'icon_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -997,6 +1008,7 @@ class $InventoryItemsTable extends InventoryItems
     availableForOrdering,
     notes,
     imageUrl,
+    iconName,
     createdAt,
     updatedAt,
     deletedAt,
@@ -1097,6 +1109,12 @@ class $InventoryItemsTable extends InventoryItems
         imageUrl.isAcceptableOrUnknown(data['image_url']!, _imageUrlMeta),
       );
     }
+    if (data.containsKey('icon_name')) {
+      context.handle(
+        _iconNameMeta,
+        iconName.isAcceptableOrUnknown(data['icon_name']!, _iconNameMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1176,6 +1194,10 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.string,
         data['${effectivePrefix}image_url'],
       ),
+      iconName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon_name'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1210,6 +1232,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final bool availableForOrdering;
   final String? notes;
   final String? imageUrl;
+  final String? iconName;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -1226,6 +1249,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     required this.availableForOrdering,
     this.notes,
     this.imageUrl,
+    this.iconName,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -1256,6 +1280,9 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     }
     if (!nullToAbsent || imageUrl != null) {
       map['image_url'] = Variable<String>(imageUrl);
+    }
+    if (!nullToAbsent || iconName != null) {
+      map['icon_name'] = Variable<String>(iconName);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -1291,6 +1318,9 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       imageUrl: imageUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(imageUrl),
+      iconName: iconName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(iconName),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -1319,6 +1349,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       ),
       notes: serializer.fromJson<String?>(json['notes']),
       imageUrl: serializer.fromJson<String?>(json['imageUrl']),
+      iconName: serializer.fromJson<String?>(json['iconName']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -1340,6 +1371,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'availableForOrdering': serializer.toJson<bool>(availableForOrdering),
       'notes': serializer.toJson<String?>(notes),
       'imageUrl': serializer.toJson<String?>(imageUrl),
+      'iconName': serializer.toJson<String?>(iconName),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -1359,6 +1391,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     bool? availableForOrdering,
     Value<String?> notes = const Value.absent(),
     Value<String?> imageUrl = const Value.absent(),
+    Value<String?> iconName = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -1377,6 +1410,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     availableForOrdering: availableForOrdering ?? this.availableForOrdering,
     notes: notes.present ? notes.value : this.notes,
     imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
+    iconName: iconName.present ? iconName.value : this.iconName,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -1403,6 +1437,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           : this.availableForOrdering,
       notes: data.notes.present ? data.notes.value : this.notes,
       imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
+      iconName: data.iconName.present ? data.iconName.value : this.iconName,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -1424,6 +1459,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('availableForOrdering: $availableForOrdering, ')
           ..write('notes: $notes, ')
           ..write('imageUrl: $imageUrl, ')
+          ..write('iconName: $iconName, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -1445,6 +1481,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     availableForOrdering,
     notes,
     imageUrl,
+    iconName,
     createdAt,
     updatedAt,
     deletedAt,
@@ -1465,6 +1502,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.availableForOrdering == this.availableForOrdering &&
           other.notes == this.notes &&
           other.imageUrl == this.imageUrl &&
+          other.iconName == this.iconName &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -1483,6 +1521,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<bool> availableForOrdering;
   final Value<String?> notes;
   final Value<String?> imageUrl;
+  final Value<String?> iconName;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -1500,6 +1539,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.availableForOrdering = const Value.absent(),
     this.notes = const Value.absent(),
     this.imageUrl = const Value.absent(),
+    this.iconName = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -1518,6 +1558,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.availableForOrdering = const Value.absent(),
     this.notes = const Value.absent(),
     this.imageUrl = const Value.absent(),
+    this.iconName = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.deletedAt = const Value.absent(),
@@ -1540,6 +1581,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<bool>? availableForOrdering,
     Expression<String>? notes,
     Expression<String>? imageUrl,
+    Expression<String>? iconName,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -1559,6 +1601,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
         'available_for_ordering': availableForOrdering,
       if (notes != null) 'notes': notes,
       if (imageUrl != null) 'image_url': imageUrl,
+      if (iconName != null) 'icon_name': iconName,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -1579,6 +1622,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<bool>? availableForOrdering,
     Value<String?>? notes,
     Value<String?>? imageUrl,
+    Value<String?>? iconName,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -1597,6 +1641,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       availableForOrdering: availableForOrdering ?? this.availableForOrdering,
       notes: notes ?? this.notes,
       imageUrl: imageUrl ?? this.imageUrl,
+      iconName: iconName ?? this.iconName,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -1645,6 +1690,9 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     if (imageUrl.present) {
       map['image_url'] = Variable<String>(imageUrl.value);
     }
+    if (iconName.present) {
+      map['icon_name'] = Variable<String>(iconName.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1675,6 +1723,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('availableForOrdering: $availableForOrdering, ')
           ..write('notes: $notes, ')
           ..write('imageUrl: $imageUrl, ')
+          ..write('iconName: $iconName, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -5401,6 +5450,7 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       Value<bool> availableForOrdering,
       Value<String?> notes,
       Value<String?> imageUrl,
+      Value<String?> iconName,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> deletedAt,
@@ -5420,6 +5470,7 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<bool> availableForOrdering,
       Value<String?> notes,
       Value<String?> imageUrl,
+      Value<String?> iconName,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -5492,6 +5543,11 @@ class $$InventoryItemsTableFilterComposer
 
   ColumnFilters<String> get imageUrl => $composableBuilder(
     column: $table.imageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get iconName => $composableBuilder(
+    column: $table.iconName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5580,6 +5636,11 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get iconName => $composableBuilder(
+    column: $table.iconName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -5649,6 +5710,9 @@ class $$InventoryItemsTableAnnotationComposer
   GeneratedColumn<String> get imageUrl =>
       $composableBuilder(column: $table.imageUrl, builder: (column) => column);
 
+  GeneratedColumn<String> get iconName =>
+      $composableBuilder(column: $table.iconName, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -5704,6 +5768,7 @@ class $$InventoryItemsTableTableManager
                 Value<bool> availableForOrdering = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
+                Value<String?> iconName = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -5721,6 +5786,7 @@ class $$InventoryItemsTableTableManager
                 availableForOrdering: availableForOrdering,
                 notes: notes,
                 imageUrl: imageUrl,
+                iconName: iconName,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -5740,6 +5806,7 @@ class $$InventoryItemsTableTableManager
                 Value<bool> availableForOrdering = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
+                Value<String?> iconName = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -5757,6 +5824,7 @@ class $$InventoryItemsTableTableManager
                 availableForOrdering: availableForOrdering,
                 notes: notes,
                 imageUrl: imageUrl,
+                iconName: iconName,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

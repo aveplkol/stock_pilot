@@ -24,6 +24,22 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Custom URL scheme for Supabase auth deep links (password reset /
+	     magic link). The email redirect `stockpilot://auth-callback` opens
+	     the app so supabase_flutter can complete the session. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>stockpilot.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>stockpilot</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

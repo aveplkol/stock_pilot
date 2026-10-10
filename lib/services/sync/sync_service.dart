@@ -21,6 +21,30 @@ class SyncService {
 
   bool get isSignedIn => _userId != null;
 
+  /// Cached company code for the current user, resolved lazily on first push
+  /// within a sync cycle. All pushed rows are stamped with this value so the
+  /// server-side RLS `company_code = current_company_code()` check passes and
+  /// data is correctly scoped to the user's company/tenant.
+  String? _companyCode;
+
+  /// Fetches (and caches) the logged-in user's company code from
+  /// `user_profiles`. Returns `null` if unavailable; callers decide whether
+  /// to proceed. The cache is cleared at the start of each sync entry point.
+  Future<String?> _currentCompanyCode(String userId) async {
+    if (_companyCode != null) return _companyCode;
+    try {
+      final row = await _client
+          .from('user_profiles')
+          .select('company_code')
+          .eq('id', userId)
+          .maybeSingle();
+      _companyCode = row?['company_code'] as String?;
+    } catch (_) {
+      _companyCode = null;
+    }
+    return _companyCode;
+  }
+
   /// Pushes all local data to Supabase after a local write.
   ///
   /// Returns `null` on success (or when not signed in / offline is a no-op),
@@ -33,6 +57,7 @@ class SyncService {
       // Not signed in: cloud sync is simply unavailable; local save stands.
       return null;
     }
+    _companyCode = null; // Re-resolve for the current user each cycle.
     try {
       await _pushSocieties(userId);
       await _pushCategories(userId);
@@ -65,6 +90,7 @@ class SyncService {
     if (userId == null) {
       throw StateError('You must be signed in to sync.');
     }
+    _companyCode = null; // Re-resolve for the current user each cycle.
 
     var pushed = 0;
     var pulled = 0;
@@ -142,6 +168,7 @@ class SyncService {
   Future<int> _pushNameKeyed(
     String table,
     String userId,
+    String? companyCode,
     List<({String id, String name, DateTime createdAt, DateTime updatedAt, DateTime? deletedAt})> rows,
   ) async {
     if (rows.isEmpty) return 0;
@@ -161,6 +188,7 @@ class SyncService {
     for (final r in rows) {
       final base = {
         'user_id': userId,
+        if (companyCode != null) 'company_code': companyCode,
         'name': r.name,
         'created_at': r.createdAt.toIso8601String(),
         'updated_at': r.updatedAt.toIso8601String(),
@@ -185,10 +213,12 @@ class SyncService {
   }
 
   Future<int> _pushSocieties(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.societies).get();
     return _pushNameKeyed(
       'societies',
       userId,
+      companyCode,
       rows
           .map((r) => (
                 id: r.id,
@@ -202,10 +232,12 @@ class SyncService {
   }
 
   Future<int> _pushCategories(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.categories).get();
     return _pushNameKeyed(
       'categories',
       userId,
+      companyCode,
       rows
           .map((r) => (
                 id: r.id,
@@ -219,12 +251,14 @@ class SyncService {
   }
 
   Future<int> _pushInventory(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.inventoryItems).get();
     if (rows.isEmpty) return 0;
     final payload = rows
         .map((r) => {
               'id': r.id,
               'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
               'name': r.name,
               'category_id': r.categoryId,
               'quantity': r.quantity,
@@ -235,6 +269,7 @@ class SyncService {
               'available_for_ordering': r.availableForOrdering,
               'notes': r.notes,
               'image_url': r.imageUrl,
+              'icon_name': r.iconName,
               'created_at': r.createdAt.toIso8601String(),
               'updated_at': r.updatedAt.toIso8601String(),
               'deleted_at': r.deletedAt?.toIso8601String(),
@@ -245,12 +280,14 @@ class SyncService {
   }
 
   Future<int> _pushStockTransactions(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.stockTransactions).get();
     if (rows.isEmpty) return 0;
     final payload = rows
         .map((r) => {
               'id': r.id,
               'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
               'inventory_item_id': r.inventoryItemId,
               'transaction_type': r.transactionType,
               // The remote table enforces a positive-quantity check
@@ -269,12 +306,14 @@ class SyncService {
   }
 
   Future<int> _pushCustomers(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.customers).get();
     if (rows.isEmpty) return 0;
     final payload = rows
         .map((r) => {
               'id': r.id,
               'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
               'name': r.name,
               'phone': r.phone,
               'email': r.email,
@@ -293,12 +332,14 @@ class SyncService {
   }
 
   Future<int> _pushOrders(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.orders).get();
     if (rows.isEmpty) return 0;
     final payload = rows
         .map((r) => {
               'id': r.id,
               'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
               'customer_id': r.customerId,
               'order_number': r.orderNumber,
               'status': r.status,
@@ -317,6 +358,7 @@ class SyncService {
   }
 
   Future<int> _pushOrderItems(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.orderItems).get();
     if (rows.isEmpty) return 0;
 
@@ -329,6 +371,7 @@ class SyncService {
         .map((r) => {
               'id': r.id,
               'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
               'order_id': r.orderId,
               'inventory_item_id': r.inventoryItemId,
               'item_name': nameById[r.inventoryItemId] ?? 'Unknown item',
@@ -346,12 +389,14 @@ class SyncService {
   }
 
   Future<int> _pushPayments(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
     final rows = await _db.select(_db.payments).get();
     if (rows.isEmpty) return 0;
     final payload = rows
         .map((r) => {
               'id': r.id,
               'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
               'customer_id': r.customerId,
               'amount': r.amount,
               'payment_mode': r.paymentMode,
@@ -437,6 +482,7 @@ class SyncService {
                   Value((row['available_for_ordering'] as bool?) ?? true),
               notes: Value(row['notes'] as String?),
               imageUrl: Value(row['image_url'] as String?),
+              iconName: Value(row['icon_name'] as String?),
               createdAt: _date(row['created_at']),
               updatedAt: _date(row['updated_at']),
               deletedAt: Value(_dateN(row['deleted_at'])),

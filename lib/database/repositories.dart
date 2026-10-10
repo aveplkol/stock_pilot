@@ -8,11 +8,26 @@ const _uuid = Uuid();
 abstract class InventoryRepositoryBase {
   Stream<List<InventoryItem>> watchItems();
 
+  /// Streams only soft-deleted inventory items (for the recovery view).
+  Stream<List<InventoryItem>> watchDeletedItems();
+
   Stream<List<Category>> watchCategories();
+
+  /// Streams only soft-deleted categories (for the recovery view).
+  Stream<List<Category>> watchDeletedCategories();
 
   /// Adds a new category by name, preventing duplicates (case-insensitive).
   /// Returns the existing category if one with the same name already exists.
   Future<Category> addCategory(String name);
+
+  /// Soft-deletes a category (sets deletedAt).
+  Future<void> deleteCategory(String categoryId);
+
+  /// Restores a soft-deleted category (clears deletedAt).
+  Future<void> restoreCategory(String categoryId);
+
+  /// Permanently removes a soft-deleted category from the local DB.
+  Future<void> purgeCategory(String categoryId);
 
   Future<InventoryItem> createItem({
     required String name,
@@ -24,6 +39,7 @@ abstract class InventoryRepositoryBase {
     bool availableForOrdering,
     String? notes,
     String? categoryId,
+    String? iconName,
   });
 
   Future<void> updateItem({
@@ -36,6 +52,7 @@ abstract class InventoryRepositoryBase {
     bool? availableForOrdering,
     String? notes,
     String? categoryId,
+    String? iconName,
   });
 
   Future<void> addTransaction(
@@ -52,6 +69,12 @@ abstract class InventoryRepositoryBase {
 
   /// Soft-deletes an inventory item (sets deletedAt).
   Future<void> deleteItem(String itemId);
+
+  /// Restores a soft-deleted inventory item (clears deletedAt).
+  Future<void> restoreItem(String itemId);
+
+  /// Permanently removes a soft-deleted inventory item from the local DB.
+  Future<void> purgeItem(String itemId);
 
   Stream<List<StockTransaction>> watchHistory(String itemId);
 
@@ -76,6 +99,19 @@ class InventoryRepository implements InventoryRepositoryBase {
   }
 
   @override
+  Stream<List<InventoryItem>> watchDeletedItems() {
+    return (db.select(db.inventoryItems)
+      ..where((t) => t.deletedAt.isNotNull())
+      ..orderBy([
+            (t) => OrderingTerm(
+          expression: t.deletedAt,
+          mode: OrderingMode.desc,
+        ),
+      ]))
+        .watch();
+  }
+
+  @override
   Stream<List<Category>> watchCategories() {
     return (db.select(db.categories)
       ..where((t) => t.deletedAt.isNull())
@@ -83,6 +119,48 @@ class InventoryRepository implements InventoryRepositoryBase {
             (t) => OrderingTerm(expression: t.name),
       ]))
         .watch();
+  }
+
+  @override
+  Stream<List<Category>> watchDeletedCategories() {
+    return (db.select(db.categories)
+      ..where((t) => t.deletedAt.isNotNull())
+      ..orderBy([
+            (t) => OrderingTerm(
+          expression: t.deletedAt,
+          mode: OrderingMode.desc,
+        ),
+      ]))
+        .watch();
+  }
+
+  @override
+  Future<void> deleteCategory(String categoryId) async {
+    final now = DateTime.now();
+    await (db.update(db.categories)..where((t) => t.id.equals(categoryId)))
+        .write(
+      CategoriesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  @override
+  Future<void> restoreCategory(String categoryId) async {
+    await (db.update(db.categories)..where((t) => t.id.equals(categoryId)))
+        .write(
+      CategoriesCompanion(
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  @override
+  Future<void> purgeCategory(String categoryId) async {
+    await (db.delete(db.categories)..where((t) => t.id.equals(categoryId)))
+        .go();
   }
 
   @override
@@ -128,6 +206,7 @@ class InventoryRepository implements InventoryRepositoryBase {
     bool availableForOrdering = true,
     String? notes,
     String? categoryId,
+    String? iconName,
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
@@ -144,6 +223,7 @@ class InventoryRepository implements InventoryRepositoryBase {
         availableForOrdering: Value(availableForOrdering),
         notes: Value(notes),
         categoryId: Value(categoryId),
+        iconName: Value(iconName),
         createdAt: now,
         updatedAt: now,
       ),
@@ -175,6 +255,7 @@ class InventoryRepository implements InventoryRepositoryBase {
     bool? availableForOrdering,
     String? notes,
     String? categoryId,
+    String? iconName,
   }) async {
     final now = DateTime.now();
 
@@ -194,6 +275,7 @@ class InventoryRepository implements InventoryRepositoryBase {
             : Value(availableForOrdering),
         notes: Value(notes),
         categoryId: Value(categoryId),
+        iconName: Value(iconName),
         updatedAt: Value(now),
       ),
     );
@@ -279,6 +361,23 @@ class InventoryRepository implements InventoryRepositoryBase {
   }
 
   @override
+  Future<void> restoreItem(String itemId) async {
+    await (db.update(db.inventoryItems)..where((t) => t.id.equals(itemId)))
+        .write(
+      InventoryItemsCompanion(
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  @override
+  Future<void> purgeItem(String itemId) async {
+    await (db.delete(db.inventoryItems)..where((t) => t.id.equals(itemId)))
+        .go();
+  }
+
+  @override
   Stream<List<StockTransaction>> watchHistory(
       String itemId,
       ) {
@@ -297,14 +396,9 @@ class InventoryRepository implements InventoryRepositoryBase {
 
   @override
   Future<void> ensureDefaultCategories() async {
-    const names = [
-      'Grocery',
-      'Toiletries',
-      'Cleaning',
-      'Medicines',
-      'Household',
-      'Miscellaneous',
-    ];
+    // No default categories are seeded — users create their own from the
+    // inventory screen. Kept as a no-op so existing callers remain valid.
+    const names = <String>[];
 
     final existing = await db.select(db.categories).get();
 
@@ -350,6 +444,45 @@ class SocietiesRepository {
         .get();
   }
 
+  /// Streams only soft-deleted (inactive) societies for the recovery view.
+  Stream<List<Society>> watchDeletedSocieties() {
+    return (db.select(db.societies)
+          ..where((t) => t.deletedAt.isNotNull())
+          ..orderBy([
+            (t) => OrderingTerm(
+                  expression: t.deletedAt,
+                  mode: OrderingMode.desc,
+                ),
+          ]))
+        .watch();
+  }
+
+  /// Soft-deletes (deactivates) a society by setting deletedAt.
+  Future<void> deleteSociety(String id) async {
+    final now = DateTime.now();
+    await (db.update(db.societies)..where((t) => t.id.equals(id))).write(
+      SocietiesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Restores a soft-deleted society by clearing deletedAt.
+  Future<void> restoreSociety(String id) async {
+    await (db.update(db.societies)..where((t) => t.id.equals(id))).write(
+      SocietiesCompanion(
+        deletedAt: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Permanently removes a soft-deleted society from the local DB.
+  Future<void> purgeSociety(String id) async {
+    await (db.delete(db.societies)..where((t) => t.id.equals(id))).go();
+  }
+
   /// Adds a new society by name. Rejects duplicates (case-insensitive)
   /// among non-deleted societies by throwing a [StateError].
   Future<Society> addSociety(String name) async {
@@ -382,14 +515,12 @@ class SocietiesRepository {
   }
 
   /// Seeds the default set of societies if the table is empty.
+  ///
+  /// There are intentionally no default societies — users add their own
+  /// from Settings → Societies. This is kept as a no-op so any existing
+  /// callers remain valid.
   Future<void> ensureDefaultSocieties() async {
-    const names = [
-      'Prestige Ozone',
-      'Palm Meadows',
-      'Brigade Gateway',
-      'Sobha Dream Acres',
-      'Godrej Woods',
-    ];
+    const names = <String>[];
 
     final existing = await db.select(db.societies).get();
     final have = existing.map((e) => e.name).toSet();

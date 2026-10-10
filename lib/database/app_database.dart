@@ -29,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -64,6 +64,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 7) {
             // v7: payments table (payment records).
             await m.createTable(payments);
+          }
+          if (from < 8) {
+            // v8: user-selectable Material icon for inventory items.
+            await m.addColumn(inventoryItems, inventoryItems.iconName);
           }
         },
       );

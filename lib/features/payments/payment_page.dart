@@ -15,7 +15,7 @@ class PaymentPage extends ConsumerStatefulWidget {
 
 class _PaymentPageState extends ConsumerState<PaymentPage> {
   String? _society, _block, _customerId;
-  final _amountCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController(text: '0');
   final _dateCtrl = TextEditingController();
   final _modeCtrl = TextEditingController(text: 'UPI');
   final _refCtrl = TextEditingController();
@@ -186,7 +186,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       final syncError = await ref.read(syncServiceProvider).autoPush();
       if (!mounted) return;
       setState(() {
-        _amountCtrl.clear();
+        _amountCtrl.text = '0';
         _refCtrl.clear();
         _notesCtrl.clear();
         _dateCtrl.text = _fmtDate(DateTime.now());

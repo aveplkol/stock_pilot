@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers.dart';
 import '../features/auth/login_page.dart';
+import '../features/auth/reset_password_page.dart';
 import '../features/auth/user_profile.dart';
 import '../features/admin/user_management_page.dart';
 import '../features/dashboard/dashboard_page.dart';
@@ -15,11 +16,19 @@ import '../features/customers/customers_page.dart';
 import '../features/orders/orders_page.dart';
 import '../features/payments/payment_page.dart';
 import '../features/settings/settings_page.dart';
+import '../features/settings/societies_page.dart';
 
 class AuthRouterNotifier extends ChangeNotifier {
   AuthRouterNotifier() {
     _subscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      // When the user arrives via the password-reset deep link, Supabase
+      // emits a `passwordRecovery` event with a short-lived recovery
+      // session. We flag it so the router redirects to the in-app reset
+      // screen instead of the dashboard.
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        isRecoveringPassword = true;
+      }
       // Defer notification to avoid triggering router redirects during an
       // active widget build/dispose phase (which throws the
       // `_dependents.isEmpty` assertion). Scheduling on a microtask lets the
@@ -32,6 +41,10 @@ class AuthRouterNotifier extends ChangeNotifier {
     });
   }
 
+  /// True while a password-recovery session is active (set when the reset
+  /// deep link opens the app). Cleared once the user finishes resetting.
+  bool isRecoveringPassword = false;
+
   late final StreamSubscription<AuthState> _subscription;
   bool _disposed = false;
 
@@ -40,6 +53,34 @@ class AuthRouterNotifier extends ChangeNotifier {
     _disposed = true;
     _subscription.cancel();
     super.dispose();
+  }
+}
+
+/// Reads any auth error (e.g. an expired reset link) that Supabase appended
+/// to the launch URL as query parameters, e.g.
+/// `.../reset-password?error=access_denied&error_code=otp_expired&...`.
+///
+/// Returns a human-readable message when an error is present, otherwise null.
+String? _authErrorFromLaunchUrl() {
+  final params = Uri.base.queryParameters;
+  final errorCode = params['error_code'] ?? params['error'];
+  if (errorCode == null || errorCode.isEmpty) return null;
+
+  final description = params['error_description'];
+  if (description != null && description.isNotEmpty) {
+    // Supabase uses '+' for spaces in the description.
+    return description.replaceAll('+', ' ');
+  }
+  switch (errorCode) {
+    case 'otp_expired':
+      return 'This password reset link is invalid or has expired. '
+          'Request a new one below.';
+    case 'access_denied':
+      return 'Access was denied for this link. Request a new reset link '
+          'below.';
+    default:
+      return 'The link could not be used ($errorCode). Request a new one '
+          'below.';
   }
 }
 
@@ -55,6 +96,26 @@ GoRouter createStockPilotRouter() {
 
       final isLoggedIn = session != null;
       final isLoginPage = state.uri.path == '/login';
+      final isResetPage = state.uri.path == '/reset-password';
+
+      // If the launch URL carries an auth error (e.g. an expired reset
+      // link), surface it on the login screen instead of silently showing a
+      // blank sign-in form. This commonly happens when the reset email link
+      // has expired or was already used.
+      final launchError = _authErrorFromLaunchUrl();
+      if (launchError != null && !authNotifier.isRecoveringPassword) {
+        if (isLoginPage) return null;
+        return Uri(
+          path: '/login',
+          queryParameters: {'authError': launchError},
+        ).toString();
+      }
+
+      // While a password-recovery session is active, force the user to the
+      // reset screen until they set a new password.
+      if (authNotifier.isRecoveringPassword) {
+        return isResetPage ? null : '/reset-password';
+      }
 
       if (!isLoggedIn && !isLoginPage) {
         return '/login';
@@ -70,7 +131,13 @@ GoRouter createStockPilotRouter() {
     routes: [
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginPage(),
+        builder: (context, state) => LoginPage(
+          initialError: state.uri.queryParameters['authError'],
+        ),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordPage(),
       ),
 
       ShellRoute(
@@ -116,6 +183,13 @@ GoRouter createStockPilotRouter() {
             builder: (context, state) => const RoleGuard(
               feature: AppFeature.settings,
               child: SettingsPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/societies',
+            builder: (context, state) => const RoleGuard(
+              feature: AppFeature.customers,
+              child: SocietiesPage(),
             ),
           ),
         ],
@@ -318,6 +392,14 @@ class DesktopNavigation extends ConsumerWidget {
                   '/users',
                   Icons.manage_accounts_outlined,
                   'User Management',
+                ),
+              if (can(AppFeature.customers))
+                _item(
+                  context,
+                  path,
+                  '/societies',
+                  Icons.location_city_outlined,
+                  'Societies',
                 ),
               if (can(AppFeature.settings))
                 _item(

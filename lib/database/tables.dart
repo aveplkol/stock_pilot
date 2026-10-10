@@ -34,6 +34,10 @@ class InventoryItems extends Table {
       boolean().withDefault(const Constant(true))();
   TextColumn get notes => text().nullable()();
   TextColumn get imageUrl => text().nullable()();
+  // Material icon code point name chosen by the user to represent the
+  // product in lists/cards. Nullable; the UI falls back to an emoji/box
+  // when not set.
+  TextColumn get iconName => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get deletedAt => dateTime().nullable()();

@@ -106,9 +106,16 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
   }
 
   Future<void> _createUser() async {
+    // Default the new user's company code to the signed-in admin's company.
+    final adminProfile =
+        await ref.read(currentUserProfileProvider.future);
+    final adminCompanyCode = adminProfile?.companyCode;
+
+    if (!mounted) return;
     final result = await showDialog<_NewUser>(
       context: context,
-      builder: (ctx) => const _CreateUserDialog(),
+      builder: (ctx) =>
+          _CreateUserDialog(companyCode: adminCompanyCode),
     );
     if (result == null) return;
 
@@ -122,6 +129,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
         password: result.password,
         role: result.role,
         name: result.name,
+        companyCode: result.companyCode,
       );
       // Restore the admin session.
       if (adminSession != null) {
@@ -264,15 +272,21 @@ class _NewUser {
     required this.password,
     required this.role,
     this.name,
+    this.companyCode,
   });
   final String email;
   final String password;
   final AppRole role;
   final String? name;
+  final String? companyCode;
 }
 
 class _CreateUserDialog extends StatefulWidget {
-  const _CreateUserDialog();
+  const _CreateUserDialog({this.companyCode});
+
+  /// The signed-in admin's company code, used as the default for the new
+  /// user so they belong to the same company/tenant.
+  final String? companyCode;
 
   @override
   State<_CreateUserDialog> createState() => _CreateUserDialogState();
@@ -283,6 +297,8 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
   final _emailCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  late final TextEditingController _companyCtrl =
+      TextEditingController(text: widget.companyCode ?? '');
   AppRole _role = AppRole.staff;
 
   @override
@@ -290,6 +306,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
     _emailCtrl.dispose();
     _nameCtrl.dispose();
     _passwordCtrl.dispose();
+    _companyCtrl.dispose();
     super.dispose();
   }
 
@@ -350,6 +367,20 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
                   .toList(),
               onChanged: (v) => setState(() => _role = v ?? AppRole.staff),
             ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _companyCtrl,
+              // Defaults to the admin's company and is read-only so the new
+              // user is always created in the same company/tenant.
+              readOnly: true,
+              enabled: false,
+              decoration: const InputDecoration(
+                labelText: 'Company code',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.business_outlined),
+                helperText: 'Same company as your account',
+              ),
+            ),
           ],
         ),
       ),
@@ -370,6 +401,9 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
                 name: _nameCtrl.text.trim().isEmpty
                     ? null
                     : _nameCtrl.text.trim(),
+                companyCode: _companyCtrl.text.trim().isEmpty
+                    ? null
+                    : _companyCtrl.text.trim(),
               ),
             );
           },

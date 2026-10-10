@@ -9,7 +9,8 @@ live sales reports.
 
 Built with **Flutter** (mobile, web, desktop), a local **SQLite** database via
 **Drift**, state management with **Riverpod**, routing with **go_router**, and
-cloud sync + auth via **Supabase**.
+cloud sync + auth via **Supabase**. It is **multi‑tenant** (data is isolated per
+**company**) with **role‑based access** (admin / manager / staff).
 
 ---
 
@@ -34,7 +35,8 @@ cloud sync + auth via **Supabase**.
 - Directly **enter the quantity** when adding or editing (changes are recorded as stock `ADJUSTMENT` transactions).
 - Quick **+1 / −1** stock buttons on each card (`PURCHASE` / `USED` transactions).
 - **Low‑stock** indicator when quantity ≤ minimum quantity.
-- Default categories are seeded on first run.
+- **Emoji product icons**: each item shows an emoji auto‑assigned from its name/category, with an in‑app **emoji picker** to override it (`core/utils/product_icons.dart`).
+- No default societies or categories are seeded — you create your own.
 
 ### Customers
 - Add/edit customers: **full name, phone, Block Number, email, society, notes**.
@@ -55,11 +57,28 @@ cloud sync + auth via **Supabase**.
   - **Item breakdown** per group (expand a card): `Egg - 10pcs - ₹100.00`, aggregated by item + unit.
   - Group and grand totals in ₹ (2‑decimal precision).
 
+### Payments
+- Record customer **payments** (amount, mode, reference, notes, date) and track collections.
+- Scoped to the signed‑in user’s company like all other data.
+
+### Auth & access control
+- **Email + password** sign‑in via Supabase. The login screen is **sign‑in only** — there is no public “create account”; new users are provisioned by an admin.
+- **Forgot password**: request a reset link by email; the in‑app reset screen handles the recovery deep link (web redirects to its own origin, native uses the `stockpilot://` scheme).
+- **Role‑based access** (`admin` / `manager` / `staff`) enforced by a central permission matrix (`features/auth/user_profile.dart`):
+  - **admin** — everything, incl. **User Management** and **Settings**.
+  - **manager** — reports, inventory, customers (plus everything staff can do).
+  - **staff** — dashboard, orders, payments.
+- **User Management** (admin‑only): list users, change roles, and **add users**. The Add‑User dialog pre‑fills the **company code** from the signed‑in admin (read‑only), so new users always join the admin’s company.
+
+### Multi‑tenancy (company codes)
+- Every data table carries a **`company_code`**; users only read/write rows for **their own company** (enforced by RLS `company_code = current_company_code()`).
+- The company code is **auto‑populated in code**: `SyncService` resolves the signed‑in user’s company from `user_profiles` and stamps it onto every pushed row — the client never has to supply it manually.
+- The **first** user ever created bootstraps as an active admin; everyone else starts inactive until an admin activates them.
+
 ### Cloud sync & auth
-- Email/password **auth** via Supabase.
 - **Local‑first**: every write is saved to the on‑device DB first, then pushed to Supabase (`autoPush`). Push failures are surfaced to the user (red SnackBar) rather than failing silently.
 - **Pre‑population**: on launch and after login the app **pulls** your cloud data into the local DB (`pullAll`), so the catalog/customers are ready immediately — like a storefront loading its catalog.
-- Per‑user data isolation via `user_id` + Supabase **Row Level Security (RLS)**.
+- Per‑user data isolation via `user_id`, per‑company isolation via `company_code`, both backed by Supabase **Row Level Security (RLS)**.
 
 ---
 
@@ -74,36 +93,50 @@ lib/
     theme.dart                  # Material 3 theme + global InputDecorationTheme
   core/config/
     supabase_config.dart        # SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY (dart-define)
+  core/utils/
+    product_icons.dart          # emoji catalog + auto-assignment by name/category
   database/
     tables.dart                 # Drift table definitions
     app_database.dart           # Drift DB, schema version + migrations, web config
-    repositories.dart           # Inventory/Societies/Customers/Orders repositories
+    repositories.dart           # Inventory/Societies/Customers/Orders/Payments repositories
   features/
-    auth/                       # login + auth repository
+    admin/                      # user management (admin-only): list/roles/add user
+    auth/                       # login, forgot/reset password, auth repository, user_profile (roles + permissions)
     dashboard/                  # Overview + order report
-    inventory/                  # inventory list + add/edit dialog
+    inventory/                  # inventory list + add/edit dialog + emoji icon picker
     customers/                  # customers list + add/edit dialog
     orders/                     # order builder + summary
-    settings/
+    payments/                   # record customer payments
+    settings/                   # settings, societies, (admin) user management entry
   services/sync/
-    sync_service.dart           # push/pull + autoPush + pullAll + syncAll
-  providers.dart                # Riverpod providers (DB, repos, auth, sync, startup sync)
+    sync_service.dart           # push/pull + autoPush + pullAll + syncAll (stamps company_code)
+  providers.dart                # Riverpod providers (DB, repos, auth, currentUserProfile, sync)
 supabase/
   rls_policies.sql              # RLS policies for all tables
-  migrations/0001_new_db_changes.sql  # schema migration (idempotent)
+  migrations/
+    0001_new_db_changes.sql           # base schema (idempotent)
+    0002_user_profiles.sql            # user_profiles + roles + handle_new_user trigger
+    0003_user_permissions.sql         # role/permission helpers
+    0004_multitenancy_and_auth.sql    # company_code on all tables + per-company RLS
+    0005_login_identifier_and_phone.sql # username/phone login helpers
+  create_super_admin.sql        # promote an auth user to an active super admin
   select_all_tables.sql         # handy SELECT queries for every table
+  truncate_all_tables.sql       # wipe all data (dev)
 ```
 
 ### Data model (Drift / Postgres)
-- `societies` (id, user_id, name, timestamps, deleted_at)
-- `categories` (id, user_id, name, timestamps, deleted_at)
-- `inventory_items` (id, user_id, name, category_id, quantity, unit, minimum_quantity, purchase_price, price, available_for_ordering, notes, image_url, timestamps, deleted_at)
-- `stock_transactions` (id, user_id, inventory_item_id, transaction_type, quantity, unit, notes, transaction_date, device_id, created_at)
-- `customers` (id, user_id, name, phone, email, address *(= Block Number)*, society, active, notes, timestamps, deleted_at)
-- `orders` (id, user_id, customer_id, order_number, status, subtotal, discount, total, notes, order_date, timestamps, deleted_at)
-- `order_items` (id, user_id, order_id, inventory_item_id, item_name, quantity, unit, unit_price, created_at)
+Every table below also carries a **`company_code`** (multi‑tenancy) in Postgres.
+- `user_profiles` (id → auth.users, email, role, name, company_code, username, is_active, timestamps)
+- `societies` (id, user_id, company_code, name, timestamps, deleted_at)
+- `categories` (id, user_id, company_code, name, timestamps, deleted_at)
+- `inventory_items` (id, user_id, company_code, name, category_id, quantity, unit, minimum_quantity, purchase_price, price, available_for_ordering, notes, image_url, icon_name, timestamps, deleted_at)
+- `stock_transactions` (id, user_id, company_code, inventory_item_id, transaction_type, quantity, unit, notes, transaction_date, device_id, created_at)
+- `customers` (id, user_id, company_code, name, phone, email, address *(= Block Number)*, society, active, notes, timestamps, deleted_at)
+- `orders` (id, user_id, company_code, customer_id, order_number, status, subtotal, discount, total, notes, order_date, timestamps, deleted_at)
+- `order_items` (id, user_id, company_code, order_id, inventory_item_id, item_name, quantity, unit, unit_price, created_at)
+- `payments` (id, user_id, company_code, customer_id, amount, payment_mode, reference, notes, payment_date, timestamps)
 
-Local schema version is **5** with incremental migrations (see `app_database.dart`).
+The local schema version is maintained with incremental migrations (see `app_database.dart`).
 
 ---
 
@@ -133,13 +166,24 @@ or use a file: `--dart-define-from-file=dart_define.json`
 (see `dart_define.example.json`).
 
 ### Apply the database schema (once)
-In the Supabase Dashboard → **SQL Editor**:
-1. Run **`supabase/migrations/0001_new_db_changes.sql`** — creates/updates all
-   tables and columns (societies table; `inventory_items.price`,
-   `available_for_ordering`; `customers.society`, `customers.active`;
-   `order_items.user_id`; indexes). Idempotent and safe to re‑run.
-2. Run **`supabase/rls_policies.sql`** — enables RLS and owner policies so each
-   user only sees their own rows.
+In the Supabase Dashboard → **SQL Editor**, run the following in order (all are
+idempotent and safe to re‑run):
+1. **`supabase/migrations/0001_new_db_changes.sql`** — base tables/columns and indexes.
+2. **`supabase/rls_policies.sql`** — enables RLS and owner policies.
+3. **`supabase/migrations/0002_user_profiles.sql`** — `user_profiles`, roles, and the
+   `handle_new_user` trigger (the **first** user becomes an active admin).
+4. **`supabase/migrations/0003_user_permissions.sql`** — role/permission helpers.
+5. **`supabase/migrations/0004_multitenancy_and_auth.sql`** — adds `company_code` to
+   every table and switches RLS to per‑company isolation.
+6. **`supabase/migrations/0005_login_identifier_and_phone.sql`** — username/phone login helpers.
+
+### Create the first admin
+The very first registered user is bootstrapped as an active admin automatically.
+To promote an **existing** auth user to an active super admin (role `admin`,
+`is_active = true`) and assign their company, edit and run
+**`supabase/create_super_admin.sql`** (set `p_email` and `p_company_code`). The
+auth account must already exist (create it under **Authentication → Users** or by
+signing in once). Thereafter that admin creates everyone else via **User Management**.
 
 ### Run
 ```bash
@@ -166,6 +210,7 @@ table, see per‑table row counts, or a joined human‑readable order report.
 
 ## How sync works
 - **Write** → saved locally → `autoPush()` upserts to Supabase (errors surfaced to the UI).
+- **Company stamping** → on every push, `SyncService` resolves the signed‑in user’s `company_code` from `user_profiles` (cached per cycle) and stamps it onto **all** pushed rows, satisfying the per‑company RLS insert check.
 - **Launch / login** → `pullAll()` fetches your rows (scoped by `user_id`) into the local DB; drift streams update the UI automatically.
 - **Full sync** (`syncAll`) pushes then pulls, and is resilient per‑table (one failing table won’t block the rest).
 - Master tables (`societies`, `categories`) sync by **name**: existing names are updated, new names inserted — avoiding duplicate‑key and `ON CONFLICT` constraint issues regardless of server constraints.
@@ -173,9 +218,11 @@ table, see per‑table row counts, or a joined human‑readable order report.
 ---
 
 ## Troubleshooting
-- **“Cloud sync failed: … column … does not exist”** → run `supabase/migrations/0001_new_db_changes.sql`.
+- **“Cloud sync failed: … column … does not exist”** → apply the migrations in order (see *Apply the database schema*); the `company_code` columns come from `0004_multitenancy_and_auth.sql`.
 - **Nothing syncs / stays local** → you’re not signed in (push/pull are no‑ops without a session). Log in.
-- **Data doesn’t pre‑populate** → ensure you’re signed in and the rows in Supabase belong to that user (`user_id = auth.uid()`), and RLS policies are applied.
+- **Push fails with an RLS / `company_code` violation** → the signed‑in user has no `company_code` on their `user_profiles` row. Assign one (e.g. via `create_super_admin.sql` or User Management).
+- **New user can’t sign in / see data** → non‑admin users start **inactive**; an admin must activate them, and they must belong to the same company.
+- **Data doesn’t pre‑populate** → ensure you’re signed in and the rows in Supabase belong to that user/company, and RLS policies are applied.
 - **Web crash: “the `web` parameter needs to be set”** → ensure `web/sqlite3.wasm` and `web/drift_worker.js` exist (they do by default) and match package versions.
 
 ---
@@ -211,12 +258,12 @@ experience:
 **Quality & security**
 - **Automated tests**: unit tests for repositories/sync, widget tests for the key flows.
 - **Input validation** hardening and server‑side constraints/checks.
-- **Auth**: password reset, OTP/social login, and session refresh handling.
+- **Auth**: ~~password reset~~ (done), OTP/social login, and session refresh handling.
 - **Observability**: crash reporting + structured logging for sync failures.
 
 **Business features**
-- **Multi‑user / staff roles** per shop; **multiple shops** per owner.
-- **Payments** (cash/UPI) tracking and outstanding balances per customer.
+- ~~**Multi‑user / staff roles** per shop~~ (done — admin/manager/staff with per‑company multi‑tenancy); multiple companies per deployment supported.
+- ~~**Payments** tracking~~ (done — basic recording); add outstanding balances per customer and cash/UPI reconciliation.
 - **Notifications** (low stock, order ready) via push/email.
 - **Delivery scheduling** by society/slot.
 
