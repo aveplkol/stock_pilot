@@ -17,6 +17,8 @@ import '../features/orders/orders_page.dart';
 import '../features/payments/payment_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/settings/societies_page.dart';
+import '../features/settings/replenishment_templates_page.dart';
+import '../features/orders/todays_orders_page.dart';
 
 class AuthRouterNotifier extends ChangeNotifier {
   AuthRouterNotifier() {
@@ -192,6 +194,17 @@ GoRouter createStockPilotRouter() {
               child: SocietiesPage(),
             ),
           ),
+          GoRoute(
+            path: '/todays-orders',
+            builder: (context, state) => const TodaysOrdersPage(),
+          ),
+          GoRoute(
+            path: '/replenishment-templates',
+            builder: (context, state) => const RoleGuard(
+              feature: AppFeature.inventory,
+              child: ReplenishmentTemplatesPage(),
+            ),
+          ),
         ],
       ),
     ],
@@ -355,15 +368,6 @@ class DesktopNavigation extends ConsumerWidget {
                 'Inventory',
               ),
 
-            if (can(AppFeature.customers))
-              _item(
-                context,
-                path,
-                '/customers',
-                Icons.people_outline,
-                'Customers',
-              ),
-
             _item(
               context,
               path,
@@ -382,33 +386,15 @@ class DesktopNavigation extends ConsumerWidget {
 
             const Spacer(),
 
-            if (can(AppFeature.userManagement) ||
-                can(AppFeature.settings)) ...[
+            if (can(AppFeature.settings)) ...[
               const _Label('ADMIN'),
-              if (can(AppFeature.userManagement))
-                _item(
-                  context,
-                  path,
-                  '/users',
-                  Icons.manage_accounts_outlined,
-                  'User Management',
-                ),
-              if (can(AppFeature.customers))
-                _item(
-                  context,
-                  path,
-                  '/societies',
-                  Icons.location_city_outlined,
-                  'Societies',
-                ),
-              if (can(AppFeature.settings))
-                _item(
-                  context,
-                  path,
-                  '/settings',
-                  Icons.settings_outlined,
-                  'Settings',
-                ),
+              _item(
+                context,
+                path,
+                '/settings',
+                Icons.settings_outlined,
+                'Settings',
+              ),
             ],
 
             const SizedBox(height: 16),
@@ -493,8 +479,8 @@ class MobileNavigation extends ConsumerWidget {
     bool can(AppFeature f) => profile?.can(f) ?? false;
 
     // Build the destination set dynamically based on role. Overview,
-    // Orders and Payments are available to everyone; Inventory and
-    // Customers only to managers/admins.
+    // Orders and Payments are available to everyone; Inventory only
+    // to managers/admins. Customers/Societies are accessed via Settings.
     final destinations = <({String path, IconData icon, String label})>[
       (
         path: '/dashboard',
@@ -507,12 +493,6 @@ class MobileNavigation extends ConsumerWidget {
           icon: Icons.inventory_2_outlined,
           label: 'Inventory'
         ),
-      if (can(AppFeature.customers))
-        (
-          path: '/customers',
-          icon: Icons.people_outline,
-          label: 'Customers'
-        ),
       (
         path: '/orders',
         icon: Icons.shopping_bag_outlined,
@@ -523,6 +503,12 @@ class MobileNavigation extends ConsumerWidget {
         icon: Icons.payments_outlined,
         label: 'Payments'
       ),
+      if (can(AppFeature.settings))
+        (
+          path: '/settings',
+          icon: Icons.settings_outlined,
+          label: 'Settings'
+        ),
     ];
 
     var selected = destinations.indexWhere((d) => d.path == path);

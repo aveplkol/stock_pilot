@@ -25,9 +25,10 @@ String _dayLabel(DateTime d) =>
 
 /// Aggregated figures for a single product across many order lines.
 class _AggRow {
-  _AggRow(this.name, this.unit);
+  _AggRow(this.name, this.unit, this.categoryName);
   final String name;
   final String unit;
+  final String categoryName;
   double quantity = 0;
   double purchaseTotal = 0; // sum(cost)
   double sellTotal = 0; // sum(revenue)
@@ -38,12 +39,14 @@ class _AggRow {
 }
 
 /// Aggregates line items by "name (unit)" summing quantity, cost and revenue.
+/// Includes category name for grouping.
 List<_AggRow> _aggregateItems(List<OrderReportRow> orders) {
   final map = <String, _AggRow>{};
   for (final o in orders) {
     for (final it in o.items) {
       final key = '${it.itemName}__${it.unit}';
-      final row = map.putIfAbsent(key, () => _AggRow(it.itemName, it.unit));
+      final catName = it.categoryName ?? 'Uncategorized';
+      final row = map.putIfAbsent(key, () => _AggRow(it.itemName, it.unit, catName));
       row.quantity += it.quantity;
       row.purchaseTotal += it.cost;
       row.sellTotal += it.total;
@@ -51,6 +54,22 @@ List<_AggRow> _aggregateItems(List<OrderReportRow> orders) {
   }
   final list = map.values.toList()..sort((a, b) => a.name.compareTo(b.name));
   return list;
+}
+
+/// Groups aggregated items by category name.
+Map<String, List<_AggRow>> _groupByCategory(List<_AggRow> items) {
+  final map = <String, List<_AggRow>>{};
+  for (final item in items) {
+    map.putIfAbsent(item.categoryName, () => []).add(item);
+  }
+  // Sort categories alphabetically, but put "Uncategorized" last
+  final sortedKeys = map.keys.toList()
+    ..sort((a, b) {
+      if (a == 'Uncategorized') return 1;
+      if (b == 'Uncategorized') return -1;
+      return a.compareTo(b);
+    });
+  return {for (final k in sortedKeys) k: map[k]!};
 }
 
 double _sumRevenue(List<OrderReportRow> orders) =>
@@ -264,33 +283,32 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       custs = custs.where((c) => c.society == _society).toList();
     }
     if (_block != null) {
-      custs = custs.where((c) => (c.address ?? '').trim() == _block).toList();
+      custs = custs.where((c) => (c.block ?? '').trim() == _block).toList();
     }
     return custs.map((c) => c.id).toSet();
   }
 
   Widget _buildFilters(BuildContext context, List<Customer> allCustomers) {
-    // Societies available.
-    final societies = {
+    // Get distinct society IDs from customers.
+    final societyIds = {
       for (final c in allCustomers)
         if ((c.society ?? '').trim().isNotEmpty) c.society!.trim()
-    }.toList()
-      ..sort();
+    }.toList();
 
-    // Blocks available within the selected society (address = block).
+    // Blocks available within the selected society.
     final inSoc = _society == null
         ? allCustomers
         : allCustomers.where((c) => c.society == _society).toList();
     final blocks = {
       for (final c in inSoc)
-        if ((c.address ?? '').trim().isNotEmpty) c.address!.trim()
+        if ((c.block ?? '').trim().isNotEmpty) c.block!.trim()
     }.toList()
       ..sort();
 
     // Customers available within the selected society + block.
     var custs = inSoc;
     if (_block != null) {
-      custs = custs.where((c) => (c.address ?? '').trim() == _block).toList();
+      custs = custs.where((c) => (c.block ?? '').trim() == _block).toList();
     }
     custs = custs.toList()
       ..sort((a, b) {
@@ -313,106 +331,129 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           border: const OutlineInputBorder(),
         );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 560;
-
-        final startField = _DateField(
-          label: 'Start date',
-          value: _dayLabel(_startDate),
-          onTap: _pickStartDate,
-        );
-        final endField = _DateField(
-          label: 'End date',
-          value: _dayLabel(_endDate),
-          onTap: _pickEndDate,
-        );
-
-        final societyField = DropdownButtonFormField<String?>(
-          initialValue: _society,
-          isExpanded: true,
-          decoration: dec('Society'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('All societies')),
-            ...societies
-                .map((s) => DropdownMenuItem(value: s, child: Text(s))),
-          ],
-          onChanged: (v) => setState(() {
-            _society = v;
-            _block = null;
-            _customerId = null;
-          }),
-        );
-
-        final blockField = DropdownButtonFormField<String?>(
-          initialValue: _block,
-          isExpanded: true,
-          decoration: dec('Block'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('All blocks')),
-            ...blocks.map((b) => DropdownMenuItem(value: b, child: Text(b))),
-          ],
-          onChanged: (v) => setState(() {
-            _block = v;
-            _customerId = null;
-          }),
-        );
-
-        final customerField = DropdownButtonFormField<String?>(
-          initialValue: selectedCustomerId,
-          isExpanded: true,
-          decoration: dec('Customer'),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('All customers')),
-            ...custs.map((c) =>
-                DropdownMenuItem(value: c.id, child: Text(customerLabel(c)))),
-          ],
-          onChanged: (v) => setState(() => _customerId = v),
-        );
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: startField),
-                  const SizedBox(width: 12),
-                  Expanded(child: endField),
-                ],
-              ),
-              const SizedBox(height: 12),
-              societyField,
-              const SizedBox(height: 12),
-              blockField,
-              const SizedBox(height: 12),
-              customerField,
-            ],
-          );
+    return StreamBuilder<List<Society>>(
+      stream: ref.watch(societiesRepositoryProvider).watchSocieties(),
+      builder: (context, societiesSnap) {
+        final allSocieties = societiesSnap.data ?? const <Society>[];
+        // Build map of societyId -> societyName
+        final societyNameById = {for (final s in allSocieties) s.id: s.name};
+        
+        // Filter to only societies that have customers
+        final availableSocieties = allSocieties
+            .where((s) => societyIds.contains(s.id))
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
+        
+        // Get the display name for the current selection title
+        String getSocietyDisplayName() {
+          if (_society == null) return 'All societies';
+          return societyNameById[_society] ?? _society!;
         }
 
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: startField),
-                const SizedBox(width: 12),
-                Expanded(child: endField),
-                const SizedBox(width: 12),
-                Expanded(child: societyField),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 560;
+
+            final startField = _DateField(
+              label: 'Start date',
+              value: _dayLabel(_startDate),
+              onTap: _pickStartDate,
+            );
+            final endField = _DateField(
+              label: 'End date',
+              value: _dayLabel(_endDate),
+              onTap: _pickEndDate,
+            );
+
+            final societyField = DropdownButtonFormField<String?>(
+              value: _society,
+              isExpanded: true,
+              decoration: dec('Society'),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All societies')),
+                ...availableSocieties.map((s) => DropdownMenuItem(
+                    value: s.id,
+                    child: Text(s.name),
+                  )),
               ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: blockField),
-                const SizedBox(width: 12),
-                Expanded(child: customerField),
-                const SizedBox(width: 12),
-                const Spacer(),
+              onChanged: (v) => setState(() {
+                _society = v;
+                _block = null;
+                _customerId = null;
+              }),
+            );
+
+            final blockField = DropdownButtonFormField<String?>(
+              value: _block,
+              isExpanded: true,
+              decoration: dec('Block'),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All blocks')),
+                ...blocks.map((b) => DropdownMenuItem(value: b, child: Text(b))),
               ],
-            ),
-          ],
+              onChanged: (v) => setState(() {
+                _block = v;
+                _customerId = null;
+              }),
+            );
+
+            final customerField = DropdownButtonFormField<String?>(
+              value: selectedCustomerId,
+              isExpanded: true,
+              decoration: dec('Customer'),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All customers')),
+                ...custs.map((c) =>
+                    DropdownMenuItem(value: c.id, child: Text(customerLabel(c)))),
+              ],
+              onChanged: (v) => setState(() => _customerId = v),
+            );
+
+            if (isNarrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: startField),
+                      const SizedBox(width: 12),
+                      Expanded(child: endField),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  societyField,
+                  const SizedBox(height: 12),
+                  blockField,
+                  const SizedBox(height: 12),
+                  customerField,
+                ],
+              );
+            }
+
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: startField),
+                    const SizedBox(width: 12),
+                    Expanded(child: endField),
+                    const SizedBox(width: 12),
+                    Expanded(child: societyField),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: blockField),
+                    const SizedBox(width: 12),
+                    Expanded(child: customerField),
+                    const SizedBox(width: 12),
+                    const Spacer(),
+                  ],
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -421,18 +462,38 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget _buildReport(BuildContext context, List<OrderReportRow> orders) {
     final grandTotal = _sumRevenue(orders);
     final grandProfit = _sumProfit(orders);
+    final items = _aggregateItems(orders);
 
-    // A single consolidated report for the current selection.
-    return _groupExpansion(
-      context,
-      icon: Icons.summarize_outlined,
-      title: _selectionTitle(),
-      subtitle: '${orders.length} order(s)',
-      amount: grandTotal,
-      profit: grandProfit,
-      items: _aggregateItems(orders),
-      initiallyExpanded: true,
-      highlight: true,
+    return StreamBuilder<List<Society>>(
+      stream: ref.watch(societiesRepositoryProvider).watchSocieties(),
+      builder: (context, societiesSnap) {
+        final allSocieties = societiesSnap.data ?? const <Society>[];
+        final societyNameById = {for (final s in allSocieties) s.id: s.name};
+        
+        String selectionTitle() {
+          final parts = <String>[];
+          if (_society != null) {
+            parts.add(societyNameById[_society] ?? _society!);
+          } else {
+            parts.add('All societies');
+          }
+          if (_block != null) parts.add(_block!);
+          return parts.join(' · ');
+        }
+
+        // A single consolidated report for the current selection.
+        return _groupExpansion(
+          context,
+          icon: Icons.summarize_outlined,
+          title: selectionTitle(),
+          subtitle: '${orders.length} order(s)',
+          amount: grandTotal,
+          profit: grandProfit,
+          items: items,
+          initiallyExpanded: true,
+          highlight: true,
+        );
+      },
     );
   }
 
@@ -513,15 +574,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  /// Renders the per-product table: Product, Qty, Purchase, Sell, Total.
+  /// Renders products grouped by category with expandable sections.
   Widget _itemsTable(
     BuildContext context,
     List<_AggRow> items, {
     required bool highlight,
   }) {
+    final grouped = _groupByCategory(items);
     final fg = highlight ? Colors.white : Colors.black87;
     final fgHead = highlight ? Colors.white70 : Colors.grey.shade700;
     final border = highlight ? Colors.white24 : Colors.grey.shade300;
+    final catHeaderBg = highlight ? Colors.white.withOpacity(0.1) : Colors.grey.shade100;
 
     Widget cell(
       String text, {
@@ -543,47 +606,110 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       );
     }
 
-    const columnWidths = <int, TableColumnWidth>{
-      0: FlexColumnWidth(2.2), // Product
-      1: FlexColumnWidth(1.1), // Qty
-      2: FlexColumnWidth(1.3), // Purchase
-      3: FlexColumnWidth(1.3), // Sell
-      4: FlexColumnWidth(1.4), // Total
-    };
+    Widget buildCategoryTable(List<_AggRow> categoryItems) {
+      const columnWidths = <int, TableColumnWidth>{
+        0: FlexColumnWidth(2.2), // Product
+        1: FlexColumnWidth(1.1), // Qty
+        2: FlexColumnWidth(1.3), // Purchase
+        3: FlexColumnWidth(1.3), // Sell
+        4: FlexColumnWidth(1.4), // Total
+      };
 
-    return Table(
-      columnWidths: columnWidths,
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      border: TableBorder(
-        horizontalInside: BorderSide(color: border),
-        bottom: BorderSide(color: border),
-      ),
-      children: [
-        TableRow(
-          children: [
-            cell('Product', header: true),
-            cell('Qty', header: true, align: TextAlign.right),
-            cell('Purchase', header: true, align: TextAlign.right),
-            cell('Sell', header: true, align: TextAlign.right),
-            cell('Total', header: true, align: TextAlign.right),
-          ],
+      return Table(
+        columnWidths: columnWidths,
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        border: TableBorder(
+          horizontalInside: BorderSide(color: border),
         ),
-        ...items.map(
-          (r) => TableRow(
+        children: [
+          TableRow(
             children: [
-              cell(r.name),
-              cell('${_fmtQty(r.quantity)} ${r.unit}',
-                  align: TextAlign.right),
-              cell('₹${r.avgPurchase.toStringAsFixed(2)}',
-                  align: TextAlign.right),
-              cell('₹${r.avgSell.toStringAsFixed(2)}',
-                  align: TextAlign.right),
-              cell('₹${r.sellTotal.toStringAsFixed(2)}',
-                  align: TextAlign.right),
+              cell('Product', header: true),
+              cell('Qty', header: true, align: TextAlign.right),
+              cell('Purchase', header: true, align: TextAlign.right),
+              cell('Sell', header: true, align: TextAlign.right),
+              cell('Total', header: true, align: TextAlign.right),
             ],
           ),
-        ),
-      ],
+          ...categoryItems.map(
+            (r) => TableRow(
+              children: [
+                cell(r.name),
+                cell('${_fmtQty(r.quantity)} ${r.unit}',
+                    align: TextAlign.right),
+                cell('₹${r.avgPurchase.toStringAsFixed(2)}',
+                    align: TextAlign.right),
+                cell('₹${r.avgSell.toStringAsFixed(2)}',
+                    align: TextAlign.right),
+                cell('₹${r.sellTotal.toStringAsFixed(2)}',
+                    align: TextAlign.right),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: grouped.entries.map((entry) {
+        final categoryName = entry.key;
+        final categoryItems = entry.value;
+        final categoryTotal = categoryItems.fold<double>(
+            0, (sum, item) => sum + item.sellTotal);
+        final categoryProfit = categoryItems.fold<double>(
+            0, (sum, item) => sum + item.profit);
+
+        return Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: true,
+            tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            iconColor: fg,
+            collapsedIconColor: fgHead,
+            title: Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: catHeaderBg,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.category_outlined,
+                    size: 16,
+                    color: fgHead,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      categoryName.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: fgHead,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '₹${categoryTotal.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            children: [
+              buildCategoryTable(categoryItems),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

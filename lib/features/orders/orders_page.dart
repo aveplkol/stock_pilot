@@ -21,15 +21,68 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   String? _block;
   String? _customerId;
   final Map<String, int> _qty = {}; // inventoryItemId -> quantity
-  final Set<String> _collapsed = {}; // collapsed category keys (default: expanded)
+  final Set<String> _collapsed = {}; // collapsed category keys
+  bool _initializedCollapse = false; // collapse all categories on first load
   String? _editingOrderId; // non-null when updating an existing order
   bool _saving = false;
   bool _loadingExisting = false;
+
+  // Available (closing) stock per item for the selected order date.
+  // Falls back to item.quantity when no record exists (handled at read time).
+  Map<String, double?> _stockMap = const {};
+  bool _loadingStock = false;
+
+  // When editing, stores the original quantities from the existing order.
+  // This allows us to calculate the true available stock = closing_stock + original_order_qty
+  Map<String, double> _originalOrderQty = const {};
 
   @override
   void initState() {
     super.initState();
     _orderDate = _dateOnly(DateTime.now().add(const Duration(days: 1)));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStockForDate());
+  }
+
+  bool get _isOrderDateToday {
+    final now = DateTime.now();
+    return _orderDate.year == now.year &&
+        _orderDate.month == now.month &&
+        _orderDate.day == now.day;
+  }
+
+  /// Loads the closing (available) stock map for the selected order date.
+  Future<void> _loadStockForDate() async {
+    setState(() => _loadingStock = true);
+    try {
+      final stockRepo = ref.read(inventoryStockRepositoryProvider);
+      final map = await stockRepo.getClosingStockMapForDate(_orderDate);
+      if (!mounted) return;
+      setState(() {
+        _stockMap = map;
+        _loadingStock = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingStock = false);
+    }
+  }
+
+  /// Resolves the available stock for an item on the selected order date.
+  /// When editing an existing order, adds back the original order quantity
+  /// so the customer can increase their order.
+  /// For today with no record, falls back to the live item.quantity.
+  /// For other dates with no record, availability is 0.
+  double _availableFor(InventoryItem item) {
+    final closingStock = _stockMap[item.id];
+    double baseAvailable;
+    if (closingStock != null) {
+      baseAvailable = closingStock;
+    } else {
+      baseAvailable = _isOrderDateToday ? item.quantity : 0.0;
+    }
+    
+    // When editing, add back the original order quantity to show true available
+    final originalQty = _originalOrderQty[item.id] ?? 0.0;
+    return baseAvailable + originalQty;
   }
 
   DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -51,6 +104,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     );
     if (picked != null) {
       setState(() => _orderDate = _dateOnly(picked));
+      await _loadStockForDate();
       if (_customerId != null) {
         await _loadExistingOrder();
       }
@@ -63,6 +117,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       setState(() {
         _qty.clear();
         _editingOrderId = null;
+        _originalOrderQty = const {};
       });
       return;
     }
@@ -73,10 +128,12 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     if (!mounted) return;
     setState(() {
       _qty.clear();
+      _originalOrderQty = {};
       if (existing != null) {
         _editingOrderId = existing.order.id;
         existing.quantities.forEach((itemId, q) {
           _qty[itemId] = q.round();
+          _originalOrderQty[itemId] = q;  // Store original quantities
         });
       } else {
         _editingOrderId = null;
@@ -85,13 +142,83 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     });
   }
 
+  /// Copies the quantities from the customer's most recent prior order into
+  /// the current form. Quantities are clamped to available stock, and items
+  /// no longer orderable/in stock are skipped.
+  Future<void> _copyPreviousDayOrder() async {
+    final customerId = _customerId;
+    if (customerId == null) return;
+
+    final existing = await ref
+        .read(ordersRepositoryProvider)
+        .findMostRecentOrderBefore(customerId, _orderDate);
+    if (!mounted) return;
+
+    if (existing == null || existing.quantities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No previous order found to copy.')),
+      );
+      return;
+    }
+
+    // Load current inventory to clamp quantities to available stock and
+    // skip items that are no longer orderable.
+    final items = await ref.read(inventoryRepositoryProvider).watchItems().first;
+    if (!mounted) return;
+    final byId = {for (final i in items) i.id: i};
+
+    var copied = 0;
+    var adjusted = 0;
+    var skipped = 0;
+    final next = <String, int>{};
+    existing.quantities.forEach((itemId, qty) {
+      final item = byId[itemId];
+      if (item == null || !item.availableForOrdering) {
+        skipped++;
+        return;
+      }
+      final want = qty.round();
+      final maxQty = _availableFor(item).floor();
+      final take = want > maxQty ? maxQty : want;
+      if (take <= 0) {
+        skipped++;
+        return;
+      }
+      if (take < want) adjusted++;
+      next[itemId] = take;
+      copied++;
+    });
+
+    setState(() {
+      _qty
+        ..clear()
+        ..addAll(next);
+    });
+
+    final parts = <String>['Copied $copied item(s)'];
+    if (adjusted > 0) parts.add('$adjusted adjusted to stock');
+    if (skipped > 0) parts.add('$skipped unavailable');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(parts.join(' · '))),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inventoryRepo = ref.watch(inventoryRepositoryProvider);
     final customersRepo = ref.watch(customersRepositoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Orders')),
+      appBar: AppBar(
+        title: const Text('Orders'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high),
+            tooltip: 'Auto Generate Orders',
+            onPressed: _showAutoGenerateDialog,
+          ),
+        ],
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 820;
@@ -163,13 +290,13 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             stream: ref.watch(societiesRepositoryProvider).watchSocieties(),
             builder: (context, snap) {
               final societies = snap.data ?? const <Society>[];
-              final names = societies.map((s) => s.name).toList();
-              final current = _society;
-              if (current != null && !names.contains(current)) {
-                names.add(current);
-              }
+              final ids = societies.map((s) => s.id).toSet();
+              final current =
+                  (_society != null && ids.contains(_society))
+                      ? _society
+                      : null;
               return DropdownButtonFormField<String?>(
-                initialValue: _society,
+                initialValue: current,
                 isExpanded: true,
                 decoration:
                     const InputDecoration(hintText: 'Choose society'),
@@ -178,9 +305,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                     value: null,
                     child: Text('Choose society'),
                   ),
-                  ...names.map(
-                    (s) =>
-                        DropdownMenuItem<String?>(value: s, child: Text(s)),
+                  ...societies.map(
+                    (s) => DropdownMenuItem<String?>(
+                      value: s.id,
+                      child: Text(s.name),
+                    ),
                   ),
                 ],
                 onChanged: (v) {
@@ -190,6 +319,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                     _customerId = null;
                     _qty.clear();
                     _editingOrderId = null;
+                    _originalOrderQty = {};
                   });
                 },
               );
@@ -210,8 +340,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                   : all.where((c) => c.society == _society).toList();
               final blocks = <String>{
                 for (final c in inSociety)
-                  if ((c.address ?? '').trim().isNotEmpty)
-                    c.address!.trim(),
+                  if ((c.block ?? '').trim().isNotEmpty)
+                    c.block!.trim(),
               }.toList()
                 ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
               final current = _block;
@@ -244,6 +374,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                           _customerId = null;
                           _qty.clear();
                           _editingOrderId = null;
+                          _originalOrderQty = {};
                         });
                       },
               );
@@ -265,17 +396,13 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               }
               if (_block != null) {
                 customers = customers
-                    .where((c) => (c.address ?? '').trim() == _block)
+                    .where((c) => (c.block ?? '').trim() == _block)
                     .toList();
               }
-              customers.sort((a, b) {
-                final na = int.tryParse((a.flatNumber ?? '').trim());
-                final nb = int.tryParse((b.flatNumber ?? '').trim());
-                if (na != null && nb != null) return na.compareTo(nb);
-                return (a.flatNumber ?? '')
-                    .toLowerCase()
-                    .compareTo((b.flatNumber ?? '').toLowerCase());
-              });
+              customers.sort((a, b) => (a.flatNumber ?? '')
+                  .trim()
+                  .toLowerCase()
+                  .compareTo((b.flatNumber ?? '').trim().toLowerCase()));
               final validIds = customers.map((c) => c.id).toSet();
               final selected =
                   (_customerId != null && validIds.contains(_customerId))
@@ -336,6 +463,18 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               ),
             ),
 
+          if (_customerId != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _copyPreviousDayOrder,
+                icon: const Icon(Icons.content_copy_outlined, size: 18),
+                label: const Text("Copy previous day's order"),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 20),
           const Text(
             'Add products',
@@ -382,6 +521,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               grouped.putIfAbsent(key, () => []).add(it);
             }
             final sortedKeys = grouped.keys.toList()..sort();
+            // Collapse all categories by default on the first data load.
+            if (!_initializedCollapse && sortedKeys.isNotEmpty) {
+              _initializedCollapse = true;
+              _collapsed.addAll(sortedKeys);
+            }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,8 +552,26 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     );
   }
 
-  Widget _productRow(InventoryItem item) {    final qty = _qty[item.id] ?? 0;
-    final maxQty = item.quantity.floor();
+  Widget _productRow(InventoryItem item) {
+    final qty = _qty[item.id] ?? 0;
+    final available = _availableFor(item);  // Now includes original order qty when editing
+    final maxQty = available.floor();
+    final outOfStock = available <= 0;
+    
+    // Show what's truly available (closing stock, not including this order's allocation)
+    final closingStock = _stockMap[item.id];
+    final displayAvailable = closingStock ?? (_isOrderDateToday ? item.quantity : 0.0);
+    final originalQty = _originalOrderQty[item.id] ?? 0.0;
+    
+    // Build the availability text
+    String availabilityText;
+    if (_editingOrderId != null && originalQty > 0) {
+      // When editing and this item was in the original order, show both values
+      availabilityText = '${displayAvailable.toStringAsFixed(0)} available · ${originalQty.toStringAsFixed(0)} ordered';
+    } else {
+      availabilityText = '${displayAvailable.toStringAsFixed(0)} available';
+    }
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Row(
@@ -424,11 +586,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '\u20b9${item.price?.toStringAsFixed(2) ?? '0.00'} \u00b7 '
-                  '${item.quantity.toStringAsFixed(0)} available',
+                  '\u20b9${item.price?.toStringAsFixed(2) ?? '0.00'} \u00b7 $availabilityText',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: outOfStock ? Colors.orange.shade800 : Colors.grey.shade600,
+                    fontWeight: outOfStock ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -480,6 +642,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 .firstWhere((_) => true, orElse: () => null);
 
             final isEditing = _editingOrderId != null;
+            
+            // Determine if we can save:
+            // - For new orders: need at least one item with qty > 0
+            // - For editing: can save even with 0 items (clears the order)
+            final canSave = customer != null && (isEditing || lines.isNotEmpty);
 
             return Container(
               margin: const EdgeInsets.all(16),
@@ -519,10 +686,20 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                         const TextStyle(color: Colors.white60, fontSize: 12),
                   ),
                   const SizedBox(height: 12),
-                  if (customer == null || lines.isEmpty)
+                  if (customer == null)
                     const Text(
-                      'Choose a customer and add products to see the total.',
+                      'Choose a customer to start the order.',
                       style: TextStyle(color: Colors.white70),
+                    )
+                  else if (lines.isEmpty && !isEditing)
+                    const Text(
+                      'Add products to see the total.',
+                      style: TextStyle(color: Colors.white70),
+                    )
+                  else if (lines.isEmpty && isEditing)
+                    Text(
+                      'All items removed. Save to clear the order.',
+                      style: TextStyle(color: Colors.orange.shade200),
                     )
                   else ...[
                     ...lines.map((e) {
@@ -570,6 +747,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                         ),
                       ],
                     ),
+                  ],
+                  if (canSave) ...[
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -589,7 +768,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                 ),
                               )
                             : Text(
-                                isEditing ? 'Update order' : 'Place order'),
+                                isEditing 
+                                    ? (lines.isEmpty ? 'Clear order' : 'Update order')
+                                    : 'Place order'),
                       ),
                     ),
                   ],
@@ -602,12 +783,212 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     );
   }
 
+  /// Shows a confirmation dialog before auto-generating orders from templates.
+  Future<void> _showAutoGenerateDialog() async {
+    var selectedDate = _orderDate;
+    var stockConfirmed = false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Auto Generate Orders'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This will create orders for all customers with templates '
+                'who don\'t have an order on the selected date.',
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Order Date',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) {
+                    setDialogState(() => selectedDate = _dateOnly(picked));
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade400),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_fmtDate(selectedDate)),
+                      const Icon(Icons.calendar_today, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              CheckboxListTile(
+                value: stockConfirmed,
+                onChanged: (v) => setDialogState(() => stockConfirmed = v ?? false),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text(
+                  'Default stock has been added for today',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: stockConfirmed
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              child: const Text('Generate Orders'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _generateFromTemplates(selectedDate);
+    }
+  }
+
+  /// Generates orders from replenishment templates for the given date.
+  Future<void> _generateFromTemplates(DateTime orderDate) async {
+    final templatesRepo = ref.read(replenishmentTemplatesRepositoryProvider);
+    final ordersRepo = ref.read(ordersRepositoryProvider);
+    final inventoryRepo = ref.read(inventoryRepositoryProvider);
+    final customersRepo = ref.read(customersRepositoryProvider);
+
+    // Get all active customers
+    final customers = await customersRepo.watchCustomers().first;
+    final activeCustomers = customers.where((c) => c.active).toList();
+
+    // Get customers who already have orders
+    final existingOrderCustomers =
+        await ordersRepo.getCustomersWithOrdersOnDate(orderDate);
+
+    // Get all templates and parse their items
+    final allTemplates = await templatesRepo.getAll();
+    final templateItemsByCustomer = <String, List<TemplateItem>>{};
+    for (final template in allTemplates) {
+      final items = templatesRepo.parseItems(template);
+      if (items.isNotEmpty) {
+        templateItemsByCustomer[template.customerId] = items;
+      }
+    }
+
+    // Get inventory
+    final items = await inventoryRepo.watchItems().first;
+    final itemsById = {for (final i in items) i.id: i};
+
+    // Resolve available (closing) stock for the target date so template
+    // generation respects the date's inventory, not today's live quantity.
+    final stockRepo = ref.read(inventoryStockRepositoryProvider);
+    final stockMap = await stockRepo.getClosingStockMapForDate(orderDate);
+    final isTargetToday = () {
+      final now = DateTime.now();
+      return orderDate.year == now.year &&
+          orderDate.month == now.month &&
+          orderDate.day == now.day;
+    }();
+    double availableFor(InventoryItem item) {
+      final v = stockMap[item.id];
+      if (v != null) return v;
+      return isTargetToday ? item.quantity : 0.0;
+    }
+
+    var created = 0;
+    var errors = 0;
+
+    for (final customer in activeCustomers) {
+      // Skip if already has order
+      if (existingOrderCustomers.contains(customer.id)) continue;
+
+      // Skip if no templates
+      final templateItems = templateItemsByCustomer[customer.id];
+      if (templateItems == null || templateItems.isEmpty) continue;
+
+      // Build order lines
+      final lines = <NewOrderLine>[];
+      for (final templateItem in templateItems) {
+        final item = itemsById[templateItem.inventoryItemId];
+        if (item != null && availableFor(item) >= templateItem.quantity) {
+          lines.add(NewOrderLine(
+            inventoryItemId: templateItem.inventoryItemId,
+            quantity: templateItem.quantity,
+            unit: item.unit,
+            unitPrice: item.price ?? 0,
+          ));
+        }
+      }
+
+      if (lines.isEmpty) continue;
+
+      try {
+        await ordersRepo.createOrder(
+          customerId: customer.id,
+          lines: lines,
+          status: 'COMPLETED',
+          orderDate: orderDate,
+        );
+        created++;
+      } catch (e) {
+        errors++;
+      }
+    }
+
+    unawaited(ref.read(syncServiceProvider).autoPush());
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Created $created orders${errors > 0 ? ' ($errors errors)' : ''}',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _placeOrder(
     List<MapEntry<String, int>> lines,
     Map<String, InventoryItem> byId,
   ) async {
     setState(() => _saving = true);
     try {
+      final isEditing = _editingOrderId != null;
+      
+      if (isEditing && lines.isEmpty) {
+        // User cleared all items - we need to restore stock and effectively "delete" the order
+        // For now, update with minimal quantity (this should ideally be a delete operation)
+        // TODO: Implement proper order deletion
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot clear all items. Please keep at least one item or delete the order.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        setState(() => _saving = false);
+        return;
+      }
+      
       final orderLines = lines.map((e) {
         final it = byId[e.key]!;
         return NewOrderLine(
@@ -618,7 +999,6 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         );
       }).toList();
 
-      final isEditing = _editingOrderId != null;
       if (isEditing) {
         await ref.read(ordersRepositoryProvider).updateOrder(
               orderId: _editingOrderId!,
@@ -633,11 +1013,16 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             );
       }
       final syncError = await ref.read(syncServiceProvider).autoPush();
+      
+      // Reload stock after order change
+      await _loadStockForDate();
+      
       if (mounted) {
         setState(() {
           _qty.clear();
           _customerId = null;
           _editingOrderId = null;
+          _originalOrderQty = {};
           _saving = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -654,7 +1039,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            content: Text(e.toString().replaceFirst('Exception: ', '').replaceFirst('StateError: ', '')),
           ),
         );
       }

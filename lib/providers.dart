@@ -46,6 +46,23 @@ final paymentsRepositoryProvider = Provider<PaymentsRepository>((ref) {
   );
 });
 
+final replenishmentTemplatesRepositoryProvider =
+    Provider<ReplenishmentTemplatesRepository>((ref) {
+  return ReplenishmentTemplatesRepository(
+    ref.watch(databaseProvider),
+  );
+});
+
+final inventoryStockRepositoryProvider =
+    Provider<InventoryStockRepository>((ref) {
+  return InventoryStockRepository(
+    ref.watch(databaseProvider),
+  );
+});
+
+/// Alias for backward compatibility during migration.
+final inventorySnapshotsRepositoryProvider = inventoryStockRepositoryProvider;
+
 // ------------------------------------------------------------
 // Supabase
 // ------------------------------------------------------------

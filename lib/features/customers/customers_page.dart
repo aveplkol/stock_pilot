@@ -24,8 +24,10 @@ class CustomersPage extends ConsumerStatefulWidget {
 }
 
 class _CustomersPageState extends ConsumerState<CustomersPage> {
-  String? _societyFilter; // null = All societies
+  String? _societyFilter; // null = All societies (holds a society ID)
   bool _showInactive = false;
+  final Set<String> _collapsedBlocks = {}; // collapsed block keys
+  bool _initializedCollapse = false; // collapse all blocks on first load
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +36,36 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Customers'),
+        title: StreamBuilder<List<Customer>>(
+          stream: repo.watchCustomers(),
+          builder: (context, snapshot) {
+            final customers = snapshot.data ?? const [];
+            final activeCount = customers.where((c) => c.active).length;
+            final totalCount = customers.length;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Customers'),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _showInactive ? '$totalCount' : '$activeCount',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
         actions: [
           IconButton(
             tooltip: _showInactive ? 'Hide inactive' : 'Show inactive',
@@ -45,104 +76,84 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Society filter chips.
-          StreamBuilder<List<Society>>(
-            stream: societiesRepo.watchSocieties(),
-            builder: (context, snapshot) {
-              final societies = snapshot.data ?? const <Society>[];
-              return SizedBox(
+      body: StreamBuilder<List<Society>>(
+        stream: societiesRepo.watchSocieties(),
+        builder: (context, societiesSnap) {
+          final societies = societiesSnap.data ?? const <Society>[];
+          return Column(
+            children: [
+              // Society filter chips (value = society id).
+              SizedBox(
                 height: 56,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   children: [
                     _chip('All societies', null),
-                    ...societies.map((s) => _chip(s.name, s.name)),
+                    ...societies.map((s) => _chip(s.name, s.id)),
                   ],
                 ),
-              );
-            },
-          ),
-          Expanded(
-            child: StreamBuilder<List<Customer>>(
-              stream: repo.watchCustomers(),
-              builder: (context, snapshot) {
-                var customers = snapshot.data ?? const [];
-                if (_societyFilter != null) {
-                  customers = customers
-                      .where((c) => c.society == _societyFilter)
-                      .toList();
-                }
-                if (!_showInactive) {
-                  customers = customers.where((c) => c.active).toList();
-                }
-                if (customers.isEmpty) {
-                  return const Center(child: Text('No customers yet'));
-                }
+              ),
+              Expanded(
+                child: StreamBuilder<List<Customer>>(
+                  stream: repo.watchCustomers(),
+                  builder: (context, snapshot) {
+                    var customers = snapshot.data ?? const [];
+                    if (_societyFilter != null) {
+                      customers = customers
+                          .where((c) => c.society == _societyFilter)
+                          .toList();
+                    }
+                    if (!_showInactive) {
+                      customers = customers.where((c) => c.active).toList();
+                    }
+                    if (customers.isEmpty) {
+                      return const Center(child: Text('No customers yet'));
+                    }
 
-                // Group by Block (address), sort blocks alphabetically and
-                // customers within each block by flat number (numeric-aware).
-                final groups = <String, List<Customer>>{};
-                for (final c in customers) {
-                  final block = (c.address ?? '').trim();
-                  groups.putIfAbsent(block.isEmpty ? 'No block' : block, () => [])
-                      .add(c);
-                }
-                final blockKeys = groups.keys.toList()
-                  ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                for (final k in blockKeys) {
-                  groups[k]!.sort((a, b) => _compareFlat(
-                        a.flatNumber ?? '',
-                        b.flatNumber ?? '',
-                      ));
-                }
+                    // Group by Block, sort blocks alphabetically and
+                    // customers within each block by flat number
+                    // (alphabetically, case-insensitive).
+                    final groups = <String, List<Customer>>{};
+                    for (final c in customers) {
+                      final block = (c.block ?? '').trim();
+                      groups
+                          .putIfAbsent(
+                              block.isEmpty ? 'No block' : block, () => [])
+                          .add(c);
+                    }
+                    final blockKeys = groups.keys.toList()
+                      ..sort((a, b) =>
+                          a.toLowerCase().compareTo(b.toLowerCase()));
+                    // Collapse all blocks by default on the first data load.
+                    if (!_initializedCollapse && blockKeys.isNotEmpty) {
+                      _initializedCollapse = true;
+                      _collapsedBlocks.addAll(blockKeys);
+                    }
+                    for (final k in blockKeys) {
+                      groups[k]!.sort((a, b) => _compareFlat(
+                            a.flatNumber ?? '',
+                            b.flatNumber ?? '',
+                          ));
+                    }
 
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    for (final block in blockKeys) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.apartment_outlined,
-                              size: 18,
-                              color: Colors.grey.shade700,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Block $block'.replaceAll('Block No block',
-                                  'No block'),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.grey.shade800,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${groups[block]!.length}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ...groups[block]!.map(_customerTile),
-                      const SizedBox(height: 8),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        for (final block in blockKeys)
+                          _buildCollapsibleBlock(
+                            block,
+                            groups[block]!,
+                            societies,
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openDialog(),
@@ -164,18 +175,85 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
     );
   }
 
-  /// Compares two flat numbers numeric-aware (so "2" < "10"), falling back
-  /// to case-insensitive string compare for non-numeric values.
-  int _compareFlat(String a, String b) {
-    final na = int.tryParse(a.trim());
-    final nb = int.tryParse(b.trim());
-    if (na != null && nb != null) return na.compareTo(nb);
-    if (na != null) return -1; // numeric flats first
-    if (nb != null) return 1;
-    return a.toLowerCase().compareTo(b.toLowerCase());
+  /// Compares two flat numbers alphabetically (case-insensitive).
+  int _compareFlat(String a, String b) =>
+      a.trim().toLowerCase().compareTo(b.trim().toLowerCase());
+
+  /// Maps a society ID to its display name.
+  String _societyName(String? societyId, List<Society> societies) {
+    if (societyId == null || societyId.isEmpty) return '';
+    for (final s in societies) {
+      if (s.id == societyId) return s.name;
+    }
+    return societyId; // Fallback to the raw value if unresolved.
   }
 
-  Widget _customerTile(Customer customer) {
+  /// Builds a collapsible block section (tappable header toggles children).
+  Widget _buildCollapsibleBlock(
+    String block,
+    List<Customer> customers,
+    List<Society> societies,
+  ) {
+    final isCollapsed = _collapsedBlocks.contains(block);
+    final displayBlock = block == 'No block' ? 'No block' : 'Block $block';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() {
+            if (isCollapsed) {
+              _collapsedBlocks.remove(block);
+            } else {
+              _collapsedBlocks.add(block);
+            }
+          }),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+            child: Row(
+              children: [
+                Icon(
+                  isCollapsed ? Icons.chevron_right : Icons.expand_more,
+                  size: 18,
+                  color: Colors.grey.shade700,
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.apartment_outlined,
+                  size: 18,
+                  color: Colors.grey.shade700,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  displayBlock,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade800,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${customers.length}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (!isCollapsed)
+          ...customers.map((c) => _customerTile(c, societies)),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _customerTile(Customer customer, List<Society> societies) {
     final flat = (customer.flatNumber ?? '').trim();
     final name = (customer.name ?? '').trim();
     final phone = (customer.phone ?? '').trim();
@@ -188,6 +266,8 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
     final title = name.isNotEmpty
         ? name
         : (flat.isNotEmpty ? 'Flat $flat' : 'Unnamed');
+
+    final societyName = _societyName(customer.society, societies);
 
     return Opacity(
       opacity: customer.active ? 1 : 0.5,
@@ -226,7 +306,7 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if ((customer.society ?? '').isNotEmpty)
+              if (societyName.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -246,7 +326,7 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
                       ),
                       const SizedBox(width: 2),
                       Text(
-                        customer.society!,
+                        societyName,
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.green.shade800,
@@ -305,7 +385,7 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
   late final TextEditingController _name;
   late final TextEditingController _phone;
   final _formKey = GlobalKey<FormState>();
-  String? _society;
+  String? _society; // holds a society ID
   bool _active = true;
   bool _saving = false;
 
@@ -316,7 +396,7 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
     super.initState();
     final c = widget.customer;
     _society = c?.society;
-    _block = TextEditingController(text: c?.address ?? '');
+    _block = TextEditingController(text: c?.block ?? '');
     _flatNumber = TextEditingController(text: c?.flatNumber ?? '');
     _name = TextEditingController(text: c?.name ?? '');
     _phone = TextEditingController(text: c?.phone ?? '');
@@ -346,7 +426,8 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
       final society =
           await ref.read(societiesRepositoryProvider).addSociety(name);
       unawaited(ref.read(syncServiceProvider).autoPush());
-      if (mounted) setState(() => _society = society.name);
+      // Store the new society's ID (not name).
+      if (mounted) setState(() => _society = society.id);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -375,7 +456,7 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
             name: _name.text.trim().isEmpty ? null : _name.text.trim(),
             phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
             society: _society,
-            address: _block.text.trim().isEmpty ? null : _block.text.trim(),
+            block: _block.text.trim().isEmpty ? null : _block.text.trim(),
             flatNumber: _flatNumber.text.trim(),
             active: _active,
           );
@@ -417,28 +498,29 @@ class _CustomerDialogState extends ConsumerState<_CustomerDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Society (mandatory) — dropdown with add-new.
+              // Society (mandatory) — dropdown with add-new. Value = id.
               StreamBuilder<List<Society>>(
                 stream: societiesRepo.watchSocieties(),
                 builder: (context, snapshot) {
                   final societies = snapshot.data ?? const <Society>[];
-                  final names = societies.map((s) => s.name).toList();
-                  final current = _society;
-                  if (current != null && !names.contains(current)) {
-                    names.add(current);
-                  }
+                  final ids = societies.map((s) => s.id).toSet();
+                  // If the current value is not among the known ids, reset.
+                  final current =
+                      (_society != null && ids.contains(_society))
+                          ? _society
+                          : null;
                   return Row(
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String?>(
-                          initialValue: _society,
+                          initialValue: current,
                           isExpanded: true,
                           decoration: _decoration('Society *'),
                           items: [
-                            ...names.map(
+                            ...societies.map(
                               (s) => DropdownMenuItem<String?>(
-                                value: s,
-                                child: Text(s),
+                                value: s.id,
+                                child: Text(s.name),
                               ),
                             ),
                           ],

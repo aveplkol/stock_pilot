@@ -251,17 +251,21 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             .watch(societiesRepositoryProvider)
                             .watchSocieties(),
                         builder: (_, snap) {
-                          final names =
-                              (snap.data ?? []).map((s) => s.name).toList();
+                          final societies = snap.data ?? const <Society>[];
+                          final ids = societies.map((s) => s.id).toSet();
+                          final current =
+                              (_society != null && ids.contains(_society))
+                                  ? _society
+                                  : null;
                           return DropdownButtonFormField<String?>(
-                            initialValue: _society,
+                            initialValue: current,
                             isExpanded: true,
                             decoration: _dec('All Societies'),
                             items: [
                               const DropdownMenuItem(
                                   value: null, child: Text('All Societies')),
-                              ...names.map((s) =>
-                                  DropdownMenuItem(value: s, child: Text(s))),
+                              ...societies.map((s) => DropdownMenuItem(
+                                  value: s.id, child: Text(s.name))),
                             ],
                             onChanged: (v) => setState(() {
                               _society = v;
@@ -283,8 +287,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                               : all.where((c) => c.society == _society).toList();
                           final blocks = {
                             for (final c in inSoc)
-                              if ((c.address ?? '').trim().isNotEmpty)
-                                c.address!.trim()
+                              if ((c.block ?? '').trim().isNotEmpty)
+                                c.block!.trim()
                           }.toList()
                             ..sort();
                           return DropdownButtonFormField<String?>(
@@ -319,20 +323,14 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                           if (_block != null) {
                             custs = custs
                                 .where((c) =>
-                                    (c.address ?? '').trim() == _block)
+                                    (c.block ?? '').trim() == _block)
                                 .toList();
                           }
-                          custs.sort((a, b) {
-                            final na =
-                                int.tryParse((a.flatNumber ?? '').trim());
-                            final nb =
-                                int.tryParse((b.flatNumber ?? '').trim());
-                            if (na != null && nb != null) {
-                              return na.compareTo(nb);
-                            }
-                            return (a.flatNumber ?? '')
-                                .compareTo(b.flatNumber ?? '');
-                          });
+                          custs.sort((a, b) => (a.flatNumber ?? '')
+                              .trim()
+                              .toLowerCase()
+                              .compareTo(
+                                  (b.flatNumber ?? '').trim().toLowerCase()));
                           final validIds = custs.map((c) => c.id).toSet();
                           final selected = (_customerId != null &&
                                   validIds.contains(_customerId))

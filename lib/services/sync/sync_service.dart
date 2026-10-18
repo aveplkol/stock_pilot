@@ -67,6 +67,8 @@ class SyncService {
       await _pushOrders(userId);
       await _pushOrderItems(userId);
       await _pushPayments(userId);
+      await _pushReplenishmentTemplates(userId);
+      await _pushInventorySnapshots(userId);
       return null;
     } on PostgrestException catch (e) {
       // Most common cause: the remote schema is missing a column/table.
@@ -113,6 +115,8 @@ class SyncService {
     await step(() => _pushOrders(userId), (n) => pushed += n, 'push orders');
     await step(() => _pushOrderItems(userId), (n) => pushed += n, 'push order items');
     await step(() => _pushPayments(userId), (n) => pushed += n, 'push payments');
+    await step(() => _pushReplenishmentTemplates(userId), (n) => pushed += n, 'push templates');
+    await step(() => _pushInventorySnapshots(userId), (n) => pushed += n, 'push snapshots');
 
     await step(() => _pullSocieties(userId), (n) => pulled += n, 'pull societies');
     await step(() => _pullCategories(userId), (n) => pulled += n, 'pull categories');
@@ -150,6 +154,8 @@ class SyncService {
     await step(() => _pullOrders(userId));
     await step(() => _pullOrderItems(userId));
     await step(() => _pullPayments(userId));
+    await step(() => _pullReplenishmentTemplates(userId));
+    await step(() => _pullInventorySnapshots(userId));
     return pulled;
   }
 
@@ -270,6 +276,7 @@ class SyncService {
               'notes': r.notes,
               'image_url': r.imageUrl,
               'icon_name': r.iconName,
+              'default_quantity': r.defaultQuantity,
               'created_at': r.createdAt.toIso8601String(),
               'updated_at': r.updatedAt.toIso8601String(),
               'deleted_at': r.deletedAt?.toIso8601String(),
@@ -317,7 +324,7 @@ class SyncService {
               'name': r.name,
               'phone': r.phone,
               'email': r.email,
-              'address': r.address,
+              'block': r.block,
               'society': r.society,
               'flat_number': r.flatNumber,
               'active': r.active,
@@ -483,6 +490,7 @@ class SyncService {
               notes: Value(row['notes'] as String?),
               imageUrl: Value(row['image_url'] as String?),
               iconName: Value(row['icon_name'] as String?),
+              defaultQuantity: Value(_dN(row['default_quantity'])),
               createdAt: _date(row['created_at']),
               updatedAt: _date(row['updated_at']),
               deletedAt: Value(_dateN(row['deleted_at'])),
@@ -529,7 +537,7 @@ class SyncService {
               name: Value(row['name'] as String?),
               phone: Value(row['phone'] as String?),
               email: Value(row['email'] as String?),
-              address: Value(row['address'] as String?),
+              block: Value(row['block'] as String?),
               society: Value(row['society'] as String?),
               flatNumber: Value(row['flat_number'] as String?),
               active: Value((row['active'] as bool?) ?? true),
@@ -621,6 +629,119 @@ class SyncService {
     }
     return data.length;
   }
+
+  // --------------------------------------------------------------------
+  // Replenishment Templates (push/pull) - one row per customer with JSON items
+  // --------------------------------------------------------------------
+
+  Future<int> _pushReplenishmentTemplates(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
+    final rows = await _db.select(_db.replenishmentTemplates).get();
+    if (rows.isEmpty) return 0;
+    final payload = rows
+        .map((r) => {
+              'id': r.id,
+              'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
+              'customer_id': r.customerId,
+              'items': r.items, // JSON string: [{"id": "...", "qty": 2}, ...]
+              'created_at': r.createdAt.toIso8601String(),
+              'updated_at': r.updatedAt.toIso8601String(),
+            })
+        .toList();
+    await _client.from('replenishment_templates').upsert(payload);
+    return payload.length;
+  }
+
+  Future<int> _pullReplenishmentTemplates(String userId) async {
+    final data = await _client
+        .from('replenishment_templates')
+        .select()
+        .eq('user_id', userId) as List<dynamic>;
+    for (final row in data.cast<Map<String, dynamic>>()) {
+      // Handle `items` as either JSON string or already-parsed JSONB
+      final itemsRaw = row['items'];
+      final itemsJson = itemsRaw is String ? itemsRaw : '[]';
+      
+      await _db.into(_db.replenishmentTemplates).insertOnConflictUpdate(
+            ReplenishmentTemplatesCompanion.insert(
+              id: row['id'] as String,
+              userId: Value(userId),
+              customerId: row['customer_id'] as String,
+              items: Value(itemsJson),
+              createdAt: _date(row['created_at']),
+              updatedAt: _date(row['updated_at']),
+            ),
+          );
+    }
+    return data.length;
+  }
+
+  // --------------------------------------------------------------------
+  // Inventory Stock (push/pull) - daily opening/closing stock per item
+  // Note: Supabase table is named 'inventory_stock' with 'stock_date' column
+  // --------------------------------------------------------------------
+
+  Future<int> _pushInventoryStock(String userId) async {
+    final companyCode = await _currentCompanyCode(userId);
+    final rows = await _db.select(_db.inventoryStock).get();
+    if (rows.isEmpty) return 0;
+    final payload = rows
+        .map((r) => {
+              'id': r.id,
+              'user_id': userId,
+              if (companyCode != null) 'company_code': companyCode,
+              'inventory_item_id': r.inventoryItemId,
+              // Convert DateTime to DATE string (YYYY-MM-DD) for Supabase
+              'stock_date': '${r.stockDate.year}-${r.stockDate.month.toString().padLeft(2, '0')}-${r.stockDate.day.toString().padLeft(2, '0')}',
+              'opening_stock': r.openingStock,
+              'closing_stock': r.closingStock,
+              'created_at': r.createdAt.toIso8601String(),
+              'updated_at': r.updatedAt.toIso8601String(),
+            })
+        .toList();
+    // Use onConflict to handle the UNIQUE(inventory_item_id, stock_date) constraint
+    await _client.from('inventory_stock').upsert(
+      payload,
+      onConflict: 'inventory_item_id,stock_date',
+    );
+    return payload.length;
+  }
+
+  Future<int> _pullInventoryStock(String userId) async {
+    final data = await _client
+        .from('inventory_stock')
+        .select()
+        .eq('user_id', userId) as List<dynamic>;
+    for (final row in data.cast<Map<String, dynamic>>()) {
+      // Parse stock_date which is a DATE (YYYY-MM-DD) from Supabase
+      final stockDateStr = row['stock_date'] as String;
+      final stockDate = DateTime.parse(stockDateStr);
+      
+      await _db.into(_db.inventoryStock).insertOnConflictUpdate(
+            InventoryStockCompanion.insert(
+              id: row['id'] as String,
+              userId: Value(userId),
+              companyCode: Value(row['company_code'] as String?),
+              inventoryItemId: row['inventory_item_id'] as String,
+              stockDate: DateTime.utc(
+                stockDate.year,
+                stockDate.month,
+                stockDate.day,
+              ),
+              openingStock: Value(_d(row['opening_stock'])),
+              closingStock: Value(_d(row['closing_stock'])),
+              createdAt: _date(row['created_at']),
+              updatedAt: _date(row['updated_at']),
+            ),
+          );
+    }
+    return data.length;
+  }
+
+  // Backward-compatible aliases (will be removed after full migration)
+  Future<int> _pushInventorySnapshots(String userId) => _pushInventoryStock(userId);
+  Future<int> _pullInventorySnapshots(String userId) => _pullInventoryStock(userId);
 }
 
 /// Summary of a completed sync cycle.

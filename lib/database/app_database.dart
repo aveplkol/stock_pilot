@@ -7,7 +7,8 @@ part 'app_database.g.dart';
 
 @DriftDatabase(tables: [
   Societies, Categories, InventoryItems, StockTransactions,
-  Customers, Orders, OrderItems, Payments,
+  Customers, Orders, OrderItems, Payments, ReplenishmentTemplates,
+  InventoryStock,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
@@ -29,7 +30,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,6 +69,53 @@ class AppDatabase extends _$AppDatabase {
           if (from < 8) {
             // v8: user-selectable Material icon for inventory items.
             await m.addColumn(inventoryItems, inventoryItems.iconName);
+          }
+          if (from < 9) {
+            // v9: rename customers.address → block. `society` now stores the
+            // society id instead of its name (data migration handled on the
+            // server; existing local string values remain compatible).
+            await m.renameColumn(customers, 'address', customers.block);
+          }
+          if (from < 10) {
+            // v10: replenishment templates table for auto-order generation.
+            // (Old schema - will be recreated in v11)
+            try {
+              await m.createTable(replenishmentTemplates);
+            } catch (_) {
+              // Table may already exist from partial migration.
+            }
+          }
+          if (from < 11) {
+            // v11: Simplified replenishment_templates - one row per customer
+            // with JSON items array instead of one row per customer-item pair.
+            // Drop and recreate to handle schema change.
+            await m.deleteTable('replenishment_templates');
+            await m.createTable(replenishmentTemplates);
+          }
+          if (from < 12) {
+            // v12: Default daily stock quantity for inventory items.
+            // Used by the "Default Stock" button to quickly record supplier deliveries.
+            await m.addColumn(inventoryItems, inventoryItems.defaultQuantity);
+          }
+          if (from < 13) {
+            // v13: Inventory snapshots table for daily opening/closing stock.
+            // (Old name - will be renamed in v14)
+            try {
+              await m.createTable(inventoryStock);
+            } catch (_) {
+              // May already exist
+            }
+          }
+          if (from < 14) {
+            // v14: Rename inventory_snapshots → inventory_stock
+            // Also rename snapshotDate → stockDate and make closingStock non-nullable
+            // For Drift/SQLite, we drop old table and recreate with new schema
+            try {
+              await m.deleteTable('inventory_snapshots');
+            } catch (_) {
+              // May not exist
+            }
+            await m.createTable(inventoryStock);
           }
         },
       );

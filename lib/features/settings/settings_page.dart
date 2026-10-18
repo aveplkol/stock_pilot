@@ -68,7 +68,63 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           const SizedBox(height: 8),
-          if (isAdmin)
+          // Data Management section
+          const Padding(
+            padding: EdgeInsets.only(top: 16, bottom: 8, left: 4),
+            child: Text(
+              'DATA MANAGEMENT',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.people_outline),
+              title: const Text('Customers'),
+              subtitle: const Text('Manage customers and their details'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/customers'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.location_city_outlined),
+              title: const Text('Societies'),
+              subtitle: const Text('Manage society/area groupings'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/societies'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.bookmark_border_outlined),
+              title: const Text('Order Templates'),
+              subtitle: const Text('Default order quantities per customer'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/replenishment-templates'),
+            ),
+          ),
+          
+          // Admin section
+          if (isAdmin) ...[
+            const Padding(
+              padding: EdgeInsets.only(top: 24, bottom: 8, left: 4),
+              child: Text(
+                'ADMINISTRATION',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.manage_accounts_outlined),
@@ -80,7 +136,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 onTap: () => context.go('/users'),
               ),
             ),
-          if (isAdmin) const SizedBox(height: 8),
+            const SizedBox(height: 8),
+          ],
+          
+          // Sync section
+          const Padding(
+            padding: EdgeInsets.only(top: 24, bottom: 8, left: 4),
+            child: Text(
+              'SYNC & ACCOUNT',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
           Card(
             child: ListTile(
               leading: _syncing

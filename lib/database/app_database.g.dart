@@ -961,6 +961,17 @@ class $InventoryItemsTable extends InventoryItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _defaultQuantityMeta = const VerificationMeta(
+    'defaultQuantity',
+  );
+  @override
+  late final GeneratedColumn<double> defaultQuantity = GeneratedColumn<double>(
+    'default_quantity',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1009,6 +1020,7 @@ class $InventoryItemsTable extends InventoryItems
     notes,
     imageUrl,
     iconName,
+    defaultQuantity,
     createdAt,
     updatedAt,
     deletedAt,
@@ -1115,6 +1127,15 @@ class $InventoryItemsTable extends InventoryItems
         iconName.isAcceptableOrUnknown(data['icon_name']!, _iconNameMeta),
       );
     }
+    if (data.containsKey('default_quantity')) {
+      context.handle(
+        _defaultQuantityMeta,
+        defaultQuantity.isAcceptableOrUnknown(
+          data['default_quantity']!,
+          _defaultQuantityMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1198,6 +1219,10 @@ class $InventoryItemsTable extends InventoryItems
         DriftSqlType.string,
         data['${effectivePrefix}icon_name'],
       ),
+      defaultQuantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}default_quantity'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1233,6 +1258,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
   final String? notes;
   final String? imageUrl;
   final String? iconName;
+  final double? defaultQuantity;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -1250,6 +1276,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     this.notes,
     this.imageUrl,
     this.iconName,
+    this.defaultQuantity,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -1283,6 +1310,9 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     }
     if (!nullToAbsent || iconName != null) {
       map['icon_name'] = Variable<String>(iconName);
+    }
+    if (!nullToAbsent || defaultQuantity != null) {
+      map['default_quantity'] = Variable<double>(defaultQuantity);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -1321,6 +1351,9 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       iconName: iconName == null && nullToAbsent
           ? const Value.absent()
           : Value(iconName),
+      defaultQuantity: defaultQuantity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultQuantity),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -1350,6 +1383,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       notes: serializer.fromJson<String?>(json['notes']),
       imageUrl: serializer.fromJson<String?>(json['imageUrl']),
       iconName: serializer.fromJson<String?>(json['iconName']),
+      defaultQuantity: serializer.fromJson<double?>(json['defaultQuantity']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -1372,6 +1406,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       'notes': serializer.toJson<String?>(notes),
       'imageUrl': serializer.toJson<String?>(imageUrl),
       'iconName': serializer.toJson<String?>(iconName),
+      'defaultQuantity': serializer.toJson<double?>(defaultQuantity),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -1392,6 +1427,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     Value<String?> notes = const Value.absent(),
     Value<String?> imageUrl = const Value.absent(),
     Value<String?> iconName = const Value.absent(),
+    Value<double?> defaultQuantity = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -1411,6 +1447,9 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     notes: notes.present ? notes.value : this.notes,
     imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
     iconName: iconName.present ? iconName.value : this.iconName,
+    defaultQuantity: defaultQuantity.present
+        ? defaultQuantity.value
+        : this.defaultQuantity,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -1438,6 +1477,9 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
       notes: data.notes.present ? data.notes.value : this.notes,
       imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
+      defaultQuantity: data.defaultQuantity.present
+          ? data.defaultQuantity.value
+          : this.defaultQuantity,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -1460,6 +1502,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           ..write('notes: $notes, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('iconName: $iconName, ')
+          ..write('defaultQuantity: $defaultQuantity, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -1482,6 +1525,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
     notes,
     imageUrl,
     iconName,
+    defaultQuantity,
     createdAt,
     updatedAt,
     deletedAt,
@@ -1503,6 +1547,7 @@ class InventoryItem extends DataClass implements Insertable<InventoryItem> {
           other.notes == this.notes &&
           other.imageUrl == this.imageUrl &&
           other.iconName == this.iconName &&
+          other.defaultQuantity == this.defaultQuantity &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -1522,6 +1567,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
   final Value<String?> notes;
   final Value<String?> imageUrl;
   final Value<String?> iconName;
+  final Value<double?> defaultQuantity;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -1540,6 +1586,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.notes = const Value.absent(),
     this.imageUrl = const Value.absent(),
     this.iconName = const Value.absent(),
+    this.defaultQuantity = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -1559,6 +1606,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     this.notes = const Value.absent(),
     this.imageUrl = const Value.absent(),
     this.iconName = const Value.absent(),
+    this.defaultQuantity = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
     this.deletedAt = const Value.absent(),
@@ -1582,6 +1630,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Expression<String>? notes,
     Expression<String>? imageUrl,
     Expression<String>? iconName,
+    Expression<double>? defaultQuantity,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -1602,6 +1651,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       if (notes != null) 'notes': notes,
       if (imageUrl != null) 'image_url': imageUrl,
       if (iconName != null) 'icon_name': iconName,
+      if (defaultQuantity != null) 'default_quantity': defaultQuantity,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -1623,6 +1673,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     Value<String?>? notes,
     Value<String?>? imageUrl,
     Value<String?>? iconName,
+    Value<double?>? defaultQuantity,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -1642,6 +1693,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
       notes: notes ?? this.notes,
       imageUrl: imageUrl ?? this.imageUrl,
       iconName: iconName ?? this.iconName,
+      defaultQuantity: defaultQuantity ?? this.defaultQuantity,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -1693,6 +1745,9 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
     if (iconName.present) {
       map['icon_name'] = Variable<String>(iconName.value);
     }
+    if (defaultQuantity.present) {
+      map['default_quantity'] = Variable<double>(defaultQuantity.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1724,6 +1779,7 @@ class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
           ..write('notes: $notes, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('iconName: $iconName, ')
+          ..write('defaultQuantity: $defaultQuantity, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -2406,12 +2462,10 @@ class $CustomersTable extends Customers
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _addressMeta = const VerificationMeta(
-    'address',
-  );
+  static const VerificationMeta _blockMeta = const VerificationMeta('block');
   @override
-  late final GeneratedColumn<String> address = GeneratedColumn<String>(
-    'address',
+  late final GeneratedColumn<String> block = GeneratedColumn<String>(
+    'block',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -2501,7 +2555,7 @@ class $CustomersTable extends Customers
     name,
     phone,
     email,
-    address,
+    block,
     society,
     flatNumber,
     active,
@@ -2551,10 +2605,10 @@ class $CustomersTable extends Customers
         email.isAcceptableOrUnknown(data['email']!, _emailMeta),
       );
     }
-    if (data.containsKey('address')) {
+    if (data.containsKey('block')) {
       context.handle(
-        _addressMeta,
-        address.isAcceptableOrUnknown(data['address']!, _addressMeta),
+        _blockMeta,
+        block.isAcceptableOrUnknown(data['block']!, _blockMeta),
       );
     }
     if (data.containsKey('society')) {
@@ -2632,9 +2686,9 @@ class $CustomersTable extends Customers
         DriftSqlType.string,
         data['${effectivePrefix}email'],
       ),
-      address: attachedDatabase.typeMapping.read(
+      block: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}address'],
+        data['${effectivePrefix}block'],
       ),
       society: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -2679,7 +2733,7 @@ class Customer extends DataClass implements Insertable<Customer> {
   final String? name;
   final String? phone;
   final String? email;
-  final String? address;
+  final String? block;
   final String? society;
   final String? flatNumber;
   final bool active;
@@ -2693,7 +2747,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     this.name,
     this.phone,
     this.email,
-    this.address,
+    this.block,
     this.society,
     this.flatNumber,
     required this.active,
@@ -2718,8 +2772,8 @@ class Customer extends DataClass implements Insertable<Customer> {
     if (!nullToAbsent || email != null) {
       map['email'] = Variable<String>(email);
     }
-    if (!nullToAbsent || address != null) {
-      map['address'] = Variable<String>(address);
+    if (!nullToAbsent || block != null) {
+      map['block'] = Variable<String>(block);
     }
     if (!nullToAbsent || society != null) {
       map['society'] = Variable<String>(society);
@@ -2752,9 +2806,9 @@ class Customer extends DataClass implements Insertable<Customer> {
       email: email == null && nullToAbsent
           ? const Value.absent()
           : Value(email),
-      address: address == null && nullToAbsent
+      block: block == null && nullToAbsent
           ? const Value.absent()
-          : Value(address),
+          : Value(block),
       society: society == null && nullToAbsent
           ? const Value.absent()
           : Value(society),
@@ -2784,7 +2838,7 @@ class Customer extends DataClass implements Insertable<Customer> {
       name: serializer.fromJson<String?>(json['name']),
       phone: serializer.fromJson<String?>(json['phone']),
       email: serializer.fromJson<String?>(json['email']),
-      address: serializer.fromJson<String?>(json['address']),
+      block: serializer.fromJson<String?>(json['block']),
       society: serializer.fromJson<String?>(json['society']),
       flatNumber: serializer.fromJson<String?>(json['flatNumber']),
       active: serializer.fromJson<bool>(json['active']),
@@ -2803,7 +2857,7 @@ class Customer extends DataClass implements Insertable<Customer> {
       'name': serializer.toJson<String?>(name),
       'phone': serializer.toJson<String?>(phone),
       'email': serializer.toJson<String?>(email),
-      'address': serializer.toJson<String?>(address),
+      'block': serializer.toJson<String?>(block),
       'society': serializer.toJson<String?>(society),
       'flatNumber': serializer.toJson<String?>(flatNumber),
       'active': serializer.toJson<bool>(active),
@@ -2820,7 +2874,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     Value<String?> name = const Value.absent(),
     Value<String?> phone = const Value.absent(),
     Value<String?> email = const Value.absent(),
-    Value<String?> address = const Value.absent(),
+    Value<String?> block = const Value.absent(),
     Value<String?> society = const Value.absent(),
     Value<String?> flatNumber = const Value.absent(),
     bool? active,
@@ -2834,7 +2888,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     name: name.present ? name.value : this.name,
     phone: phone.present ? phone.value : this.phone,
     email: email.present ? email.value : this.email,
-    address: address.present ? address.value : this.address,
+    block: block.present ? block.value : this.block,
     society: society.present ? society.value : this.society,
     flatNumber: flatNumber.present ? flatNumber.value : this.flatNumber,
     active: active ?? this.active,
@@ -2850,7 +2904,7 @@ class Customer extends DataClass implements Insertable<Customer> {
       name: data.name.present ? data.name.value : this.name,
       phone: data.phone.present ? data.phone.value : this.phone,
       email: data.email.present ? data.email.value : this.email,
-      address: data.address.present ? data.address.value : this.address,
+      block: data.block.present ? data.block.value : this.block,
       society: data.society.present ? data.society.value : this.society,
       flatNumber: data.flatNumber.present
           ? data.flatNumber.value
@@ -2871,7 +2925,7 @@ class Customer extends DataClass implements Insertable<Customer> {
           ..write('name: $name, ')
           ..write('phone: $phone, ')
           ..write('email: $email, ')
-          ..write('address: $address, ')
+          ..write('block: $block, ')
           ..write('society: $society, ')
           ..write('flatNumber: $flatNumber, ')
           ..write('active: $active, ')
@@ -2890,7 +2944,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     name,
     phone,
     email,
-    address,
+    block,
     society,
     flatNumber,
     active,
@@ -2908,7 +2962,7 @@ class Customer extends DataClass implements Insertable<Customer> {
           other.name == this.name &&
           other.phone == this.phone &&
           other.email == this.email &&
-          other.address == this.address &&
+          other.block == this.block &&
           other.society == this.society &&
           other.flatNumber == this.flatNumber &&
           other.active == this.active &&
@@ -2924,7 +2978,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
   final Value<String?> name;
   final Value<String?> phone;
   final Value<String?> email;
-  final Value<String?> address;
+  final Value<String?> block;
   final Value<String?> society;
   final Value<String?> flatNumber;
   final Value<bool> active;
@@ -2939,7 +2993,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.name = const Value.absent(),
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
-    this.address = const Value.absent(),
+    this.block = const Value.absent(),
     this.society = const Value.absent(),
     this.flatNumber = const Value.absent(),
     this.active = const Value.absent(),
@@ -2955,7 +3009,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.name = const Value.absent(),
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
-    this.address = const Value.absent(),
+    this.block = const Value.absent(),
     this.society = const Value.absent(),
     this.flatNumber = const Value.absent(),
     this.active = const Value.absent(),
@@ -2973,7 +3027,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Expression<String>? name,
     Expression<String>? phone,
     Expression<String>? email,
-    Expression<String>? address,
+    Expression<String>? block,
     Expression<String>? society,
     Expression<String>? flatNumber,
     Expression<bool>? active,
@@ -2989,7 +3043,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       if (name != null) 'name': name,
       if (phone != null) 'phone': phone,
       if (email != null) 'email': email,
-      if (address != null) 'address': address,
+      if (block != null) 'block': block,
       if (society != null) 'society': society,
       if (flatNumber != null) 'flat_number': flatNumber,
       if (active != null) 'active': active,
@@ -3007,7 +3061,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Value<String?>? name,
     Value<String?>? phone,
     Value<String?>? email,
-    Value<String?>? address,
+    Value<String?>? block,
     Value<String?>? society,
     Value<String?>? flatNumber,
     Value<bool>? active,
@@ -3023,7 +3077,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,
-      address: address ?? this.address,
+      block: block ?? this.block,
       society: society ?? this.society,
       flatNumber: flatNumber ?? this.flatNumber,
       active: active ?? this.active,
@@ -3053,8 +3107,8 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     if (email.present) {
       map['email'] = Variable<String>(email.value);
     }
-    if (address.present) {
-      map['address'] = Variable<String>(address.value);
+    if (block.present) {
+      map['block'] = Variable<String>(block.value);
     }
     if (society.present) {
       map['society'] = Variable<String>(society.value);
@@ -3091,7 +3145,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
           ..write('name: $name, ')
           ..write('phone: $phone, ')
           ..write('email: $email, ')
-          ..write('address: $address, ')
+          ..write('block: $block, ')
           ..write('society: $society, ')
           ..write('flatNumber: $flatNumber, ')
           ..write('active: $active, ')
@@ -4982,6 +5036,1004 @@ class PaymentsCompanion extends UpdateCompanion<Payment> {
   }
 }
 
+class $ReplenishmentTemplatesTable extends ReplenishmentTemplates
+    with TableInfo<$ReplenishmentTemplatesTable, ReplenishmentTemplate> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReplenishmentTemplatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _customerIdMeta = const VerificationMeta(
+    'customerId',
+  );
+  @override
+  late final GeneratedColumn<String> customerId = GeneratedColumn<String>(
+    'customer_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _itemsMeta = const VerificationMeta('items');
+  @override
+  late final GeneratedColumn<String> items = GeneratedColumn<String>(
+    'items',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    customerId,
+    items,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'replenishment_templates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReplenishmentTemplate> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('customer_id')) {
+      context.handle(
+        _customerIdMeta,
+        customerId.isAcceptableOrUnknown(data['customer_id']!, _customerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_customerIdMeta);
+    }
+    if (data.containsKey('items')) {
+      context.handle(
+        _itemsMeta,
+        items.isAcceptableOrUnknown(data['items']!, _itemsMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ReplenishmentTemplate map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReplenishmentTemplate(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      ),
+      customerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}customer_id'],
+      )!,
+      items: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}items'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ReplenishmentTemplatesTable createAlias(String alias) {
+    return $ReplenishmentTemplatesTable(attachedDatabase, alias);
+  }
+}
+
+class ReplenishmentTemplate extends DataClass
+    implements Insertable<ReplenishmentTemplate> {
+  final String id;
+  final String? userId;
+  final String customerId;
+
+  /// JSON array of items: [{"id": "inventoryItemId", "qty": 2}, ...]
+  final String items;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const ReplenishmentTemplate({
+    required this.id,
+    this.userId,
+    required this.customerId,
+    required this.items,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<String>(userId);
+    }
+    map['customer_id'] = Variable<String>(customerId);
+    map['items'] = Variable<String>(items);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ReplenishmentTemplatesCompanion toCompanion(bool nullToAbsent) {
+    return ReplenishmentTemplatesCompanion(
+      id: Value(id),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      customerId: Value(customerId),
+      items: Value(items),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ReplenishmentTemplate.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReplenishmentTemplate(
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String?>(json['userId']),
+      customerId: serializer.fromJson<String>(json['customerId']),
+      items: serializer.fromJson<String>(json['items']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String?>(userId),
+      'customerId': serializer.toJson<String>(customerId),
+      'items': serializer.toJson<String>(items),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ReplenishmentTemplate copyWith({
+    String? id,
+    Value<String?> userId = const Value.absent(),
+    String? customerId,
+    String? items,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => ReplenishmentTemplate(
+    id: id ?? this.id,
+    userId: userId.present ? userId.value : this.userId,
+    customerId: customerId ?? this.customerId,
+    items: items ?? this.items,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ReplenishmentTemplate copyWithCompanion(
+    ReplenishmentTemplatesCompanion data,
+  ) {
+    return ReplenishmentTemplate(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      customerId: data.customerId.present
+          ? data.customerId.value
+          : this.customerId,
+      items: data.items.present ? data.items.value : this.items,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReplenishmentTemplate(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('customerId: $customerId, ')
+          ..write('items: $items, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, userId, customerId, items, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReplenishmentTemplate &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.customerId == this.customerId &&
+          other.items == this.items &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ReplenishmentTemplatesCompanion
+    extends UpdateCompanion<ReplenishmentTemplate> {
+  final Value<String> id;
+  final Value<String?> userId;
+  final Value<String> customerId;
+  final Value<String> items;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ReplenishmentTemplatesCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.customerId = const Value.absent(),
+    this.items = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReplenishmentTemplatesCompanion.insert({
+    required String id,
+    this.userId = const Value.absent(),
+    required String customerId,
+    this.items = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       customerId = Value(customerId),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<ReplenishmentTemplate> custom({
+    Expression<String>? id,
+    Expression<String>? userId,
+    Expression<String>? customerId,
+    Expression<String>? items,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (customerId != null) 'customer_id': customerId,
+      if (items != null) 'items': items,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReplenishmentTemplatesCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? userId,
+    Value<String>? customerId,
+    Value<String>? items,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ReplenishmentTemplatesCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      customerId: customerId ?? this.customerId,
+      items: items ?? this.items,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (customerId.present) {
+      map['customer_id'] = Variable<String>(customerId.value);
+    }
+    if (items.present) {
+      map['items'] = Variable<String>(items.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReplenishmentTemplatesCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('customerId: $customerId, ')
+          ..write('items: $items, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $InventoryStockTable extends InventoryStock
+    with TableInfo<$InventoryStockTable, InventoryStockData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $InventoryStockTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _companyCodeMeta = const VerificationMeta(
+    'companyCode',
+  );
+  @override
+  late final GeneratedColumn<String> companyCode = GeneratedColumn<String>(
+    'company_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _inventoryItemIdMeta = const VerificationMeta(
+    'inventoryItemId',
+  );
+  @override
+  late final GeneratedColumn<String> inventoryItemId = GeneratedColumn<String>(
+    'inventory_item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stockDateMeta = const VerificationMeta(
+    'stockDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> stockDate = GeneratedColumn<DateTime>(
+    'stock_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _openingStockMeta = const VerificationMeta(
+    'openingStock',
+  );
+  @override
+  late final GeneratedColumn<double> openingStock = GeneratedColumn<double>(
+    'opening_stock',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _closingStockMeta = const VerificationMeta(
+    'closingStock',
+  );
+  @override
+  late final GeneratedColumn<double> closingStock = GeneratedColumn<double>(
+    'closing_stock',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    companyCode,
+    inventoryItemId,
+    stockDate,
+    openingStock,
+    closingStock,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'inventory_stock';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<InventoryStockData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('company_code')) {
+      context.handle(
+        _companyCodeMeta,
+        companyCode.isAcceptableOrUnknown(
+          data['company_code']!,
+          _companyCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('inventory_item_id')) {
+      context.handle(
+        _inventoryItemIdMeta,
+        inventoryItemId.isAcceptableOrUnknown(
+          data['inventory_item_id']!,
+          _inventoryItemIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_inventoryItemIdMeta);
+    }
+    if (data.containsKey('stock_date')) {
+      context.handle(
+        _stockDateMeta,
+        stockDate.isAcceptableOrUnknown(data['stock_date']!, _stockDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stockDateMeta);
+    }
+    if (data.containsKey('opening_stock')) {
+      context.handle(
+        _openingStockMeta,
+        openingStock.isAcceptableOrUnknown(
+          data['opening_stock']!,
+          _openingStockMeta,
+        ),
+      );
+    }
+    if (data.containsKey('closing_stock')) {
+      context.handle(
+        _closingStockMeta,
+        closingStock.isAcceptableOrUnknown(
+          data['closing_stock']!,
+          _closingStockMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  InventoryStockData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return InventoryStockData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      ),
+      companyCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_code'],
+      ),
+      inventoryItemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}inventory_item_id'],
+      )!,
+      stockDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}stock_date'],
+      )!,
+      openingStock: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}opening_stock'],
+      )!,
+      closingStock: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}closing_stock'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $InventoryStockTable createAlias(String alias) {
+    return $InventoryStockTable(attachedDatabase, alias);
+  }
+}
+
+class InventoryStockData extends DataClass
+    implements Insertable<InventoryStockData> {
+  final String id;
+  final String? userId;
+  final String? companyCode;
+  final String inventoryItemId;
+
+  /// The date for this stock record (stored as DateTime at midnight UTC).
+  final DateTime stockDate;
+
+  /// Stock at the start of the day (set when Default Stock is applied or
+  /// when stock is manually adjusted for that date).
+  final double openingStock;
+
+  /// Stock at the end of the day after orders are deducted.
+  /// Always = openingStock - sum(order_items.quantity for orders on this date).
+  final double closingStock;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const InventoryStockData({
+    required this.id,
+    this.userId,
+    this.companyCode,
+    required this.inventoryItemId,
+    required this.stockDate,
+    required this.openingStock,
+    required this.closingStock,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<String>(userId);
+    }
+    if (!nullToAbsent || companyCode != null) {
+      map['company_code'] = Variable<String>(companyCode);
+    }
+    map['inventory_item_id'] = Variable<String>(inventoryItemId);
+    map['stock_date'] = Variable<DateTime>(stockDate);
+    map['opening_stock'] = Variable<double>(openingStock);
+    map['closing_stock'] = Variable<double>(closingStock);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  InventoryStockCompanion toCompanion(bool nullToAbsent) {
+    return InventoryStockCompanion(
+      id: Value(id),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      companyCode: companyCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(companyCode),
+      inventoryItemId: Value(inventoryItemId),
+      stockDate: Value(stockDate),
+      openingStock: Value(openingStock),
+      closingStock: Value(closingStock),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory InventoryStockData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InventoryStockData(
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String?>(json['userId']),
+      companyCode: serializer.fromJson<String?>(json['companyCode']),
+      inventoryItemId: serializer.fromJson<String>(json['inventoryItemId']),
+      stockDate: serializer.fromJson<DateTime>(json['stockDate']),
+      openingStock: serializer.fromJson<double>(json['openingStock']),
+      closingStock: serializer.fromJson<double>(json['closingStock']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String?>(userId),
+      'companyCode': serializer.toJson<String?>(companyCode),
+      'inventoryItemId': serializer.toJson<String>(inventoryItemId),
+      'stockDate': serializer.toJson<DateTime>(stockDate),
+      'openingStock': serializer.toJson<double>(openingStock),
+      'closingStock': serializer.toJson<double>(closingStock),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  InventoryStockData copyWith({
+    String? id,
+    Value<String?> userId = const Value.absent(),
+    Value<String?> companyCode = const Value.absent(),
+    String? inventoryItemId,
+    DateTime? stockDate,
+    double? openingStock,
+    double? closingStock,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => InventoryStockData(
+    id: id ?? this.id,
+    userId: userId.present ? userId.value : this.userId,
+    companyCode: companyCode.present ? companyCode.value : this.companyCode,
+    inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+    stockDate: stockDate ?? this.stockDate,
+    openingStock: openingStock ?? this.openingStock,
+    closingStock: closingStock ?? this.closingStock,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  InventoryStockData copyWithCompanion(InventoryStockCompanion data) {
+    return InventoryStockData(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      companyCode: data.companyCode.present
+          ? data.companyCode.value
+          : this.companyCode,
+      inventoryItemId: data.inventoryItemId.present
+          ? data.inventoryItemId.value
+          : this.inventoryItemId,
+      stockDate: data.stockDate.present ? data.stockDate.value : this.stockDate,
+      openingStock: data.openingStock.present
+          ? data.openingStock.value
+          : this.openingStock,
+      closingStock: data.closingStock.present
+          ? data.closingStock.value
+          : this.closingStock,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InventoryStockData(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('companyCode: $companyCode, ')
+          ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('stockDate: $stockDate, ')
+          ..write('openingStock: $openingStock, ')
+          ..write('closingStock: $closingStock, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    companyCode,
+    inventoryItemId,
+    stockDate,
+    openingStock,
+    closingStock,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is InventoryStockData &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.companyCode == this.companyCode &&
+          other.inventoryItemId == this.inventoryItemId &&
+          other.stockDate == this.stockDate &&
+          other.openingStock == this.openingStock &&
+          other.closingStock == this.closingStock &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class InventoryStockCompanion extends UpdateCompanion<InventoryStockData> {
+  final Value<String> id;
+  final Value<String?> userId;
+  final Value<String?> companyCode;
+  final Value<String> inventoryItemId;
+  final Value<DateTime> stockDate;
+  final Value<double> openingStock;
+  final Value<double> closingStock;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const InventoryStockCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.companyCode = const Value.absent(),
+    this.inventoryItemId = const Value.absent(),
+    this.stockDate = const Value.absent(),
+    this.openingStock = const Value.absent(),
+    this.closingStock = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  InventoryStockCompanion.insert({
+    required String id,
+    this.userId = const Value.absent(),
+    this.companyCode = const Value.absent(),
+    required String inventoryItemId,
+    required DateTime stockDate,
+    this.openingStock = const Value.absent(),
+    this.closingStock = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       inventoryItemId = Value(inventoryItemId),
+       stockDate = Value(stockDate),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<InventoryStockData> custom({
+    Expression<String>? id,
+    Expression<String>? userId,
+    Expression<String>? companyCode,
+    Expression<String>? inventoryItemId,
+    Expression<DateTime>? stockDate,
+    Expression<double>? openingStock,
+    Expression<double>? closingStock,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (companyCode != null) 'company_code': companyCode,
+      if (inventoryItemId != null) 'inventory_item_id': inventoryItemId,
+      if (stockDate != null) 'stock_date': stockDate,
+      if (openingStock != null) 'opening_stock': openingStock,
+      if (closingStock != null) 'closing_stock': closingStock,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  InventoryStockCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? userId,
+    Value<String?>? companyCode,
+    Value<String>? inventoryItemId,
+    Value<DateTime>? stockDate,
+    Value<double>? openingStock,
+    Value<double>? closingStock,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return InventoryStockCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      companyCode: companyCode ?? this.companyCode,
+      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      stockDate: stockDate ?? this.stockDate,
+      openingStock: openingStock ?? this.openingStock,
+      closingStock: closingStock ?? this.closingStock,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (companyCode.present) {
+      map['company_code'] = Variable<String>(companyCode.value);
+    }
+    if (inventoryItemId.present) {
+      map['inventory_item_id'] = Variable<String>(inventoryItemId.value);
+    }
+    if (stockDate.present) {
+      map['stock_date'] = Variable<DateTime>(stockDate.value);
+    }
+    if (openingStock.present) {
+      map['opening_stock'] = Variable<double>(openingStock.value);
+    }
+    if (closingStock.present) {
+      map['closing_stock'] = Variable<double>(closingStock.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InventoryStockCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('companyCode: $companyCode, ')
+          ..write('inventoryItemId: $inventoryItemId, ')
+          ..write('stockDate: $stockDate, ')
+          ..write('openingStock: $openingStock, ')
+          ..write('closingStock: $closingStock, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4994,6 +6046,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $OrdersTable orders = $OrdersTable(this);
   late final $OrderItemsTable orderItems = $OrderItemsTable(this);
   late final $PaymentsTable payments = $PaymentsTable(this);
+  late final $ReplenishmentTemplatesTable replenishmentTemplates =
+      $ReplenishmentTemplatesTable(this);
+  late final $InventoryStockTable inventoryStock = $InventoryStockTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5007,6 +6062,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     orders,
     orderItems,
     payments,
+    replenishmentTemplates,
+    inventoryStock,
   ];
 }
 
@@ -5451,6 +6508,7 @@ typedef $$InventoryItemsTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> imageUrl,
       Value<String?> iconName,
+      Value<double?> defaultQuantity,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<DateTime?> deletedAt,
@@ -5471,6 +6529,7 @@ typedef $$InventoryItemsTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> imageUrl,
       Value<String?> iconName,
+      Value<double?> defaultQuantity,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -5548,6 +6607,11 @@ class $$InventoryItemsTableFilterComposer
 
   ColumnFilters<String> get iconName => $composableBuilder(
     column: $table.iconName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get defaultQuantity => $composableBuilder(
+    column: $table.defaultQuantity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5641,6 +6705,11 @@ class $$InventoryItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get defaultQuantity => $composableBuilder(
+    column: $table.defaultQuantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -5713,6 +6782,11 @@ class $$InventoryItemsTableAnnotationComposer
   GeneratedColumn<String> get iconName =>
       $composableBuilder(column: $table.iconName, builder: (column) => column);
 
+  GeneratedColumn<double> get defaultQuantity => $composableBuilder(
+    column: $table.defaultQuantity,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -5769,6 +6843,7 @@ class $$InventoryItemsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
+                Value<double?> defaultQuantity = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -5787,6 +6862,7 @@ class $$InventoryItemsTableTableManager
                 notes: notes,
                 imageUrl: imageUrl,
                 iconName: iconName,
+                defaultQuantity: defaultQuantity,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -5807,6 +6883,7 @@ class $$InventoryItemsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
+                Value<double?> defaultQuantity = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -5825,6 +6902,7 @@ class $$InventoryItemsTableTableManager
                 notes: notes,
                 imageUrl: imageUrl,
                 iconName: iconName,
+                defaultQuantity: defaultQuantity,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -6176,7 +7254,7 @@ typedef $$CustomersTableCreateCompanionBuilder =
       Value<String?> name,
       Value<String?> phone,
       Value<String?> email,
-      Value<String?> address,
+      Value<String?> block,
       Value<String?> society,
       Value<String?> flatNumber,
       Value<bool> active,
@@ -6193,7 +7271,7 @@ typedef $$CustomersTableUpdateCompanionBuilder =
       Value<String?> name,
       Value<String?> phone,
       Value<String?> email,
-      Value<String?> address,
+      Value<String?> block,
       Value<String?> society,
       Value<String?> flatNumber,
       Value<bool> active,
@@ -6238,8 +7316,8 @@ class $$CustomersTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get address => $composableBuilder(
-    column: $table.address,
+  ColumnFilters<String> get block => $composableBuilder(
+    column: $table.block,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6313,8 +7391,8 @@ class $$CustomersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get address => $composableBuilder(
-    column: $table.address,
+  ColumnOrderings<String> get block => $composableBuilder(
+    column: $table.block,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -6378,8 +7456,8 @@ class $$CustomersTableAnnotationComposer
   GeneratedColumn<String> get email =>
       $composableBuilder(column: $table.email, builder: (column) => column);
 
-  GeneratedColumn<String> get address =>
-      $composableBuilder(column: $table.address, builder: (column) => column);
+  GeneratedColumn<String> get block =>
+      $composableBuilder(column: $table.block, builder: (column) => column);
 
   GeneratedColumn<String> get society =>
       $composableBuilder(column: $table.society, builder: (column) => column);
@@ -6438,7 +7516,7 @@ class $$CustomersTableTableManager
                 Value<String?> name = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
-                Value<String?> address = const Value.absent(),
+                Value<String?> block = const Value.absent(),
                 Value<String?> society = const Value.absent(),
                 Value<String?> flatNumber = const Value.absent(),
                 Value<bool> active = const Value.absent(),
@@ -6453,7 +7531,7 @@ class $$CustomersTableTableManager
                 name: name,
                 phone: phone,
                 email: email,
-                address: address,
+                block: block,
                 society: society,
                 flatNumber: flatNumber,
                 active: active,
@@ -6470,7 +7548,7 @@ class $$CustomersTableTableManager
                 Value<String?> name = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
-                Value<String?> address = const Value.absent(),
+                Value<String?> block = const Value.absent(),
                 Value<String?> society = const Value.absent(),
                 Value<String?> flatNumber = const Value.absent(),
                 Value<bool> active = const Value.absent(),
@@ -6485,7 +7563,7 @@ class $$CustomersTableTableManager
                 name: name,
                 phone: phone,
                 email: email,
-                address: address,
+                block: block,
                 society: society,
                 flatNumber: flatNumber,
                 active: active,
@@ -7418,6 +8496,536 @@ typedef $$PaymentsTableProcessedTableManager =
       Payment,
       PrefetchHooks Function()
     >;
+typedef $$ReplenishmentTemplatesTableCreateCompanionBuilder =
+    ReplenishmentTemplatesCompanion Function({
+      required String id,
+      Value<String?> userId,
+      required String customerId,
+      Value<String> items,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ReplenishmentTemplatesTableUpdateCompanionBuilder =
+    ReplenishmentTemplatesCompanion Function({
+      Value<String> id,
+      Value<String?> userId,
+      Value<String> customerId,
+      Value<String> items,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ReplenishmentTemplatesTableFilterComposer
+    extends Composer<_$AppDatabase, $ReplenishmentTemplatesTable> {
+  $$ReplenishmentTemplatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customerId => $composableBuilder(
+    column: $table.customerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get items => $composableBuilder(
+    column: $table.items,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReplenishmentTemplatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReplenishmentTemplatesTable> {
+  $$ReplenishmentTemplatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customerId => $composableBuilder(
+    column: $table.customerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get items => $composableBuilder(
+    column: $table.items,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReplenishmentTemplatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReplenishmentTemplatesTable> {
+  $$ReplenishmentTemplatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get customerId => $composableBuilder(
+    column: $table.customerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get items =>
+      $composableBuilder(column: $table.items, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ReplenishmentTemplatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReplenishmentTemplatesTable,
+          ReplenishmentTemplate,
+          $$ReplenishmentTemplatesTableFilterComposer,
+          $$ReplenishmentTemplatesTableOrderingComposer,
+          $$ReplenishmentTemplatesTableAnnotationComposer,
+          $$ReplenishmentTemplatesTableCreateCompanionBuilder,
+          $$ReplenishmentTemplatesTableUpdateCompanionBuilder,
+          (
+            ReplenishmentTemplate,
+            BaseReferences<
+              _$AppDatabase,
+              $ReplenishmentTemplatesTable,
+              ReplenishmentTemplate
+            >,
+          ),
+          ReplenishmentTemplate,
+          PrefetchHooks Function()
+        > {
+  $$ReplenishmentTemplatesTableTableManager(
+    _$AppDatabase db,
+    $ReplenishmentTemplatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReplenishmentTemplatesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ReplenishmentTemplatesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ReplenishmentTemplatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> userId = const Value.absent(),
+                Value<String> customerId = const Value.absent(),
+                Value<String> items = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReplenishmentTemplatesCompanion(
+                id: id,
+                userId: userId,
+                customerId: customerId,
+                items: items,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> userId = const Value.absent(),
+                required String customerId,
+                Value<String> items = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ReplenishmentTemplatesCompanion.insert(
+                id: id,
+                userId: userId,
+                customerId: customerId,
+                items: items,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReplenishmentTemplatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReplenishmentTemplatesTable,
+      ReplenishmentTemplate,
+      $$ReplenishmentTemplatesTableFilterComposer,
+      $$ReplenishmentTemplatesTableOrderingComposer,
+      $$ReplenishmentTemplatesTableAnnotationComposer,
+      $$ReplenishmentTemplatesTableCreateCompanionBuilder,
+      $$ReplenishmentTemplatesTableUpdateCompanionBuilder,
+      (
+        ReplenishmentTemplate,
+        BaseReferences<
+          _$AppDatabase,
+          $ReplenishmentTemplatesTable,
+          ReplenishmentTemplate
+        >,
+      ),
+      ReplenishmentTemplate,
+      PrefetchHooks Function()
+    >;
+typedef $$InventoryStockTableCreateCompanionBuilder =
+    InventoryStockCompanion Function({
+      required String id,
+      Value<String?> userId,
+      Value<String?> companyCode,
+      required String inventoryItemId,
+      required DateTime stockDate,
+      Value<double> openingStock,
+      Value<double> closingStock,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$InventoryStockTableUpdateCompanionBuilder =
+    InventoryStockCompanion Function({
+      Value<String> id,
+      Value<String?> userId,
+      Value<String?> companyCode,
+      Value<String> inventoryItemId,
+      Value<DateTime> stockDate,
+      Value<double> openingStock,
+      Value<double> closingStock,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$InventoryStockTableFilterComposer
+    extends Composer<_$AppDatabase, $InventoryStockTable> {
+  $$InventoryStockTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get companyCode => $composableBuilder(
+    column: $table.companyCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inventoryItemId => $composableBuilder(
+    column: $table.inventoryItemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get stockDate => $composableBuilder(
+    column: $table.stockDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get openingStock => $composableBuilder(
+    column: $table.openingStock,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get closingStock => $composableBuilder(
+    column: $table.closingStock,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$InventoryStockTableOrderingComposer
+    extends Composer<_$AppDatabase, $InventoryStockTable> {
+  $$InventoryStockTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get companyCode => $composableBuilder(
+    column: $table.companyCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inventoryItemId => $composableBuilder(
+    column: $table.inventoryItemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get stockDate => $composableBuilder(
+    column: $table.stockDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get openingStock => $composableBuilder(
+    column: $table.openingStock,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get closingStock => $composableBuilder(
+    column: $table.closingStock,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$InventoryStockTableAnnotationComposer
+    extends Composer<_$AppDatabase, $InventoryStockTable> {
+  $$InventoryStockTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get companyCode => $composableBuilder(
+    column: $table.companyCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get inventoryItemId => $composableBuilder(
+    column: $table.inventoryItemId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get stockDate =>
+      $composableBuilder(column: $table.stockDate, builder: (column) => column);
+
+  GeneratedColumn<double> get openingStock => $composableBuilder(
+    column: $table.openingStock,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get closingStock => $composableBuilder(
+    column: $table.closingStock,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$InventoryStockTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $InventoryStockTable,
+          InventoryStockData,
+          $$InventoryStockTableFilterComposer,
+          $$InventoryStockTableOrderingComposer,
+          $$InventoryStockTableAnnotationComposer,
+          $$InventoryStockTableCreateCompanionBuilder,
+          $$InventoryStockTableUpdateCompanionBuilder,
+          (
+            InventoryStockData,
+            BaseReferences<
+              _$AppDatabase,
+              $InventoryStockTable,
+              InventoryStockData
+            >,
+          ),
+          InventoryStockData,
+          PrefetchHooks Function()
+        > {
+  $$InventoryStockTableTableManager(
+    _$AppDatabase db,
+    $InventoryStockTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$InventoryStockTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$InventoryStockTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$InventoryStockTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> userId = const Value.absent(),
+                Value<String?> companyCode = const Value.absent(),
+                Value<String> inventoryItemId = const Value.absent(),
+                Value<DateTime> stockDate = const Value.absent(),
+                Value<double> openingStock = const Value.absent(),
+                Value<double> closingStock = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => InventoryStockCompanion(
+                id: id,
+                userId: userId,
+                companyCode: companyCode,
+                inventoryItemId: inventoryItemId,
+                stockDate: stockDate,
+                openingStock: openingStock,
+                closingStock: closingStock,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> userId = const Value.absent(),
+                Value<String?> companyCode = const Value.absent(),
+                required String inventoryItemId,
+                required DateTime stockDate,
+                Value<double> openingStock = const Value.absent(),
+                Value<double> closingStock = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => InventoryStockCompanion.insert(
+                id: id,
+                userId: userId,
+                companyCode: companyCode,
+                inventoryItemId: inventoryItemId,
+                stockDate: stockDate,
+                openingStock: openingStock,
+                closingStock: closingStock,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$InventoryStockTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $InventoryStockTable,
+      InventoryStockData,
+      $$InventoryStockTableFilterComposer,
+      $$InventoryStockTableOrderingComposer,
+      $$InventoryStockTableAnnotationComposer,
+      $$InventoryStockTableCreateCompanionBuilder,
+      $$InventoryStockTableUpdateCompanionBuilder,
+      (
+        InventoryStockData,
+        BaseReferences<_$AppDatabase, $InventoryStockTable, InventoryStockData>,
+      ),
+      InventoryStockData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7438,4 +9046,11 @@ class $AppDatabaseManager {
       $$OrderItemsTableTableManager(_db, _db.orderItems);
   $$PaymentsTableTableManager get payments =>
       $$PaymentsTableTableManager(_db, _db.payments);
+  $$ReplenishmentTemplatesTableTableManager get replenishmentTemplates =>
+      $$ReplenishmentTemplatesTableTableManager(
+        _db,
+        _db.replenishmentTemplates,
+      );
+  $$InventoryStockTableTableManager get inventoryStock =>
+      $$InventoryStockTableTableManager(_db, _db.inventoryStock);
 }

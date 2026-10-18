@@ -1,4 +1,4 @@
- import 'package:drift/drift.dart';
+import 'package:drift/drift.dart';
 
 class Societies extends Table {
   TextColumn get id => text()();
@@ -38,6 +38,9 @@ class InventoryItems extends Table {
   // product in lists/cards. Nullable; the UI falls back to an emoji/box
   // when not set.
   TextColumn get iconName => text().nullable()();
+  // Default daily incoming stock quantity from the supplier. Used by the
+  // "Default Stock" button to quickly record daily purchases.
+  RealColumn get defaultQuantity => real().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get deletedAt => dateTime().nullable()();
@@ -65,9 +68,10 @@ class Customers extends Table {
   TextColumn get name => text().nullable()();
   TextColumn get phone => text().nullable()();
   TextColumn get email => text().nullable()();
-  // Legacy "address" column (kept for back-compat; no longer surfaced).
-  TextColumn get address => text().nullable()();
-  // `society` holds the Block Name (mandatory in the UI).
+  // `block` holds the Block Name (e.g. "ALDINA", "D-Block") — mandatory
+  // in the UI. (Renamed from the legacy `address` column.)
+  TextColumn get block => text().nullable()();
+  // `society` stores the society ID (foreign key to societies.id).
   TextColumn get society => text().nullable()();
   // Flat / house number within the block (mandatory in the UI).
   TextColumn get flatNumber => text().nullable()();
@@ -120,4 +124,46 @@ class Payments extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   @override Set<Column> get primaryKey => {id};
+}
+
+/// Stores the default order template for a customer.
+/// Used by the "Order Templates" feature to auto-generate daily orders.
+/// One row per customer. The `items` column stores a JSON array of
+/// {inventoryItemId, quantity} pairs.
+class ReplenishmentTemplates extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get customerId => text()();
+  /// JSON array of items: [{"id": "inventoryItemId", "qty": 2}, ...]
+  TextColumn get items => text().withDefault(const Constant('[]'))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  @override Set<Column> get primaryKey => {id};
+}
+
+/// Daily inventory stock records capturing opening and closing stock for each item
+/// per date. Used for date-based inventory management and order fulfillment.
+/// One row per inventory item per date.
+/// 
+/// - `openingStock`: The stock available at the start of the day (set via 
+///   "Default Stock" button or manual edit on the card).
+/// - `closingStock`: Always computed as `openingStock - total_ordered_for_this_date`.
+class InventoryStock extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get companyCode => text().nullable()();
+  TextColumn get inventoryItemId => text()();
+  /// The date for this stock record (stored as DateTime at midnight UTC).
+  DateTimeColumn get stockDate => dateTime()();
+  /// Stock at the start of the day (set when Default Stock is applied or
+  /// when stock is manually adjusted for that date).
+  RealColumn get openingStock => real().withDefault(const Constant(0))();
+  /// Stock at the end of the day after orders are deducted.
+  /// Always = openingStock - sum(order_items.quantity for orders on this date).
+  RealColumn get closingStock => real().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
