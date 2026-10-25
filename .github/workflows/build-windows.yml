@@ -7,40 +7,51 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2022
+    runs-on: windows-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
-      - name: Setup Java (required for Flutter)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-      
-      - name: Install Flutter manually
+      - name: Install Flutter
         shell: pwsh
         run: |
-          $flutterUrl = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.24.0-stable.zip"
-          $flutterZip = "flutter.zip"
-          Invoke-WebRequest -Uri $flutterUrl -OutFile $flutterZip
-          Expand-Archive -Path $flutterZip -DestinationPath C:\ -Force
-          echo "C:\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Download Flutter 3.22.3 (stable, well-tested)
+          $flutterUrl = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.22.3-stable.zip"
+          Write-Host "Downloading Flutter from $flutterUrl"
+          Invoke-WebRequest -Uri $flutterUrl -OutFile flutter.zip -UseBasicParsing
+          Write-Host "Extracting Flutter..."
+          Expand-Archive -Path flutter.zip -DestinationPath C:\ -Force
+          # Add to PATH for subsequent steps
+          "C:\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       
-      - name: Verify Flutter
+      - name: Flutter version and doctor
+        shell: pwsh
         run: |
-          flutter --version
-          flutter doctor
+          C:\flutter\bin\flutter --version
+          C:\flutter\bin\flutter doctor -v
       
       - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
+        shell: pwsh
+        run: C:\flutter\bin\flutter config --enable-windows-desktop
       
       - name: Get dependencies
-        run: flutter pub get
+        shell: pwsh
+        run: C:\flutter\bin\flutter pub get
       
       - name: Build Windows release
-        run: flutter build windows --release
+        shell: pwsh
+        run: C:\flutter\bin\flutter build windows --release
+      
+      - name: List build output
+        shell: pwsh
+        run: |
+          if (Test-Path "build\windows\x64\runner\Release") {
+            Get-ChildItem -Path "build\windows\x64\runner\Release" -Recurse
+          } else {
+            Write-Host "Build directory not found!"
+            Get-ChildItem -Path "build" -Recurse -ErrorAction SilentlyContinue
+          }
       
       - name: Zip the release
         shell: pwsh
