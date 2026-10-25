@@ -3,47 +3,52 @@ name: Build Windows Release
 on:
   push:
     branches: [main, master]
-  workflow_dispatch:  # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Java (required for Flutter)
+        uses: actions/setup-java@v3
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-          cache: true
+          distribution: 'zulu'
+          java-version: '17'
       
-      - name: Verify Flutter installation
+      - name: Install Flutter manually
+        shell: pwsh
+        run: |
+          $flutterUrl = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.24.0-stable.zip"
+          $flutterZip = "flutter.zip"
+          Invoke-WebRequest -Uri $flutterUrl -OutFile $flutterZip
+          Expand-Archive -Path $flutterZip -DestinationPath C:\ -Force
+          echo "C:\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      
+      - name: Verify Flutter
         run: |
           flutter --version
-          flutter doctor -v
+          flutter doctor
+      
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
       
       - name: Get dependencies
         run: flutter pub get
       
       - name: Build Windows release
-        run: flutter build windows --release --verbose
-      
-      - name: List build output
-        run: |
-          dir build\windows\x64\runner\Release
-        shell: cmd
-        continue-on-error: true
+        run: flutter build windows --release
       
       - name: Zip the release
+        shell: pwsh
         run: |
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath StockPilot-Windows.zip
-        shell: pwsh
       
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: StockPilot-Windows
           path: StockPilot-Windows.zip
