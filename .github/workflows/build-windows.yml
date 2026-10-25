@@ -18,12 +18,24 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
+          cache: true
+      
+      - name: Verify Flutter installation
+        run: |
+          flutter --version
+          flutter doctor -v
       
       - name: Get dependencies
         run: flutter pub get
       
       - name: Build Windows release
-        run: flutter build windows --release
+        run: flutter build windows --release --verbose
+      
+      - name: List build output
+        run: |
+          dir build\windows\x64\runner\Release
+        shell: cmd
+        continue-on-error: true
       
       - name: Zip the release
         run: |
