@@ -24,10 +24,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       final result = await ref.read(syncServiceProvider).syncAll();
       if (mounted) {
-        setState(() => _lastSyncMessage = result.toString());
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.toString())),
-        );
+        // Build a detailed message including any per-table errors so issues
+        // (e.g. a failing customers pull) are visible without a console.
+        final detail = result.hasErrors
+            ? '${result}\n\nErrors:\n${result.errors.join('\n')}'
+            : result.toString();
+        setState(() => _lastSyncMessage = detail);
+        if (result.hasErrors) {
+          // Show a dialog for errors so the full text is readable.
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Sync completed with errors'),
+              content: SingleChildScrollView(
+                child: SelectableText(detail),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result.toString())),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
