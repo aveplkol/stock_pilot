@@ -427,9 +427,26 @@ class SyncService {
   // PULL (remote -> local)
   // --------------------------------------------------------------------
 
-  DateTime _date(dynamic v) => DateTime.parse(v as String);
-  DateTime? _dateN(dynamic v) =>
-      v == null ? null : DateTime.parse(v as String);
+  // Defensive date parsing: if the value is null or unparseable, fall back
+  // to the current time rather than throwing (which would abort the entire
+  // table's pull and silently drop all rows).
+  DateTime _date(dynamic v) {
+    if (v == null) return DateTime.now();
+    try {
+      return DateTime.parse(v as String);
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
+  DateTime? _dateN(dynamic v) {
+    if (v == null) return null;
+    try {
+      return DateTime.parse(v as String);
+    } catch (_) {
+      return null;
+    }
+  }
   double _d(dynamic v) => (v as num?)?.toDouble() ?? 0;
   double? _dN(dynamic v) => (v as num?)?.toDouble();
 
