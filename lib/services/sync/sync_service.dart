@@ -429,10 +429,8 @@ class SyncService {
   double? _dN(dynamic v) => (v as num?)?.toDouble();
 
   Future<int> _pullSocieties(String userId) async {
-    final data = await _client
-        .from('societies')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('societies').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.societies).insertOnConflictUpdate(
             SocietiesCompanion.insert(
@@ -449,10 +447,8 @@ class SyncService {
   }
 
   Future<int> _pullCategories(String userId) async {
-    final data = await _client
-        .from('categories')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('categories').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.categories).insertOnConflictUpdate(
             CategoriesCompanion.insert(
@@ -469,10 +465,8 @@ class SyncService {
   }
 
   Future<int> _pullInventory(String userId) async {
-    final data = await _client
-        .from('inventory_items')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('inventory_items').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.inventoryItems).insertOnConflictUpdate(
             InventoryItemsCompanion.insert(
@@ -501,10 +495,8 @@ class SyncService {
   }
 
   Future<int> _pullStockTransactions(String userId) async {
-    final data = await _client
-        .from('stock_transactions')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('stock_transactions').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.stockTransactions).insertOnConflictUpdate(
             StockTransactionsCompanion.insert(
@@ -525,10 +517,8 @@ class SyncService {
   }
 
   Future<int> _pullCustomers(String userId) async {
-    final data = await _client
-        .from('customers')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('customers').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.customers).insertOnConflictUpdate(
             CustomersCompanion.insert(
@@ -552,10 +542,8 @@ class SyncService {
   }
 
   Future<int> _pullOrders(String userId) async {
-    final data = await _client
-        .from('orders')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('orders').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.orders).insertOnConflictUpdate(
             OrdersCompanion.insert(
@@ -579,10 +567,8 @@ class SyncService {
   }
 
   Future<int> _pullOrderItems(String userId) async {
-    final data = await _client
-        .from('order_items')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('order_items').select() as List<dynamic>;
 
     for (final row in data.cast<Map<String, dynamic>>()) {
       final quantity = _d(row['quantity']);
@@ -607,10 +593,8 @@ class SyncService {
   }
 
   Future<int> _pullPayments(String userId) async {
-    final data = await _client
-        .from('payments')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('payments').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       await _db.into(_db.payments).insertOnConflictUpdate(
             PaymentsCompanion.insert(
@@ -654,10 +638,8 @@ class SyncService {
   }
 
   Future<int> _pullReplenishmentTemplates(String userId) async {
-    final data = await _client
-        .from('replenishment_templates')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('replenishment_templates').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       // Handle `items` as either JSON string or already-parsed JSONB
       final itemsRaw = row['items'];
@@ -709,10 +691,8 @@ class SyncService {
   }
 
   Future<int> _pullInventoryStock(String userId) async {
-    final data = await _client
-        .from('inventory_stock')
-        .select()
-        .eq('user_id', userId) as List<dynamic>;
+    // RLS enforces company_code filtering server-side; no client filter needed.
+    final data = await _client.from('inventory_stock').select() as List<dynamic>;
     for (final row in data.cast<Map<String, dynamic>>()) {
       // Parse stock_date which is a DATE (YYYY-MM-DD) from Supabase
       final stockDateStr = row['stock_date'] as String;
