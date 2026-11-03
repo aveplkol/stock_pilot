@@ -11,37 +11,25 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
       
       - name: Install Flutter
-        shell: pwsh
-        run: |
-          # Download Flutter 3.22.3 (stable, well-tested)
-          $flutterUrl = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.22.3-stable.zip"
-          Write-Host "Downloading Flutter from $flutterUrl"
-          Invoke-WebRequest -Uri $flutterUrl -OutFile flutter.zip -UseBasicParsing
-          Write-Host "Extracting Flutter..."
-          Expand-Archive -Path flutter.zip -DestinationPath C:\ -Force
-          # Add to PATH for subsequent steps
-          "C:\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.32.2
       
-      - name: Flutter version and doctor
-        shell: pwsh
-        run: |
-          C:\flutter\bin\flutter --version
-          C:\flutter\bin\flutter doctor -v
+      - name: Flutter doctor
+        run: flutter doctor -v
       
       - name: Enable Windows desktop
-        shell: pwsh
-        run: C:\flutter\bin\flutter config --enable-windows-desktop
+        run: flutter config --enable-windows-desktop
       
       - name: Get dependencies
-        shell: pwsh
-        run: C:\flutter\bin\flutter pub get
+        run: flutter pub get
       
       - name: Build Windows release
-        shell: pwsh
-        run: C:\flutter\bin\flutter build windows --release
+        run: flutter build windows --release
       
       - name: List build output
         shell: pwsh
