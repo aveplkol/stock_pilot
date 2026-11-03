@@ -133,30 +133,35 @@ class SyncService {
   /// Pulls remote data into the local database (remote -> local only).
   /// Used on startup/login so the catalog is pre-populated like a storefront.
   /// Resilient: a failing table does not stop the others.
-  Future<int> pullAll() async {
+  /// 
+  /// Returns a [PullResult] with count and any errors encountered.
+  Future<PullResult> pullAll() async {
     final userId = _userId;
-    if (userId == null) return 0;
+    if (userId == null) return const PullResult(pulled: 0, errors: []);
 
     var pulled = 0;
-    Future<void> step(Future<int> Function() op) async {
+    final errors = <String>[];
+    
+    Future<void> step(Future<int> Function() op, String tableName) async {
       try {
         pulled += await op();
-      } catch (_) {
-        // Ignore individual table failures during background pull.
+      } catch (e) {
+        errors.add('$tableName: $e');
       }
     }
 
-    await step(() => _pullSocieties(userId));
-    await step(() => _pullCategories(userId));
-    await step(() => _pullInventory(userId));
-    await step(() => _pullStockTransactions(userId));
-    await step(() => _pullCustomers(userId));
-    await step(() => _pullOrders(userId));
-    await step(() => _pullOrderItems(userId));
-    await step(() => _pullPayments(userId));
-    await step(() => _pullReplenishmentTemplates(userId));
-    await step(() => _pullInventorySnapshots(userId));
-    return pulled;
+    await step(() => _pullSocieties(userId), 'societies');
+    await step(() => _pullCategories(userId), 'categories');
+    await step(() => _pullInventory(userId), 'inventory');
+    await step(() => _pullStockTransactions(userId), 'stock_transactions');
+    await step(() => _pullCustomers(userId), 'customers');
+    await step(() => _pullOrders(userId), 'orders');
+    await step(() => _pullOrderItems(userId), 'order_items');
+    await step(() => _pullPayments(userId), 'payments');
+    await step(() => _pullReplenishmentTemplates(userId), 'replenishment_templates');
+    await step(() => _pullInventorySnapshots(userId), 'inventory_stock');
+    
+    return PullResult(pulled: pulled, errors: errors);
   }
 
   // --------------------------------------------------------------------
@@ -722,6 +727,14 @@ class SyncService {
   // Backward-compatible aliases (will be removed after full migration)
   Future<int> _pushInventorySnapshots(String userId) => _pushInventoryStock(userId);
   Future<int> _pullInventorySnapshots(String userId) => _pullInventoryStock(userId);
+}
+
+/// Summary of a pull operation.
+class PullResult {
+  const PullResult({required this.pulled, this.errors = const []});
+  final int pulled;
+  final List<String> errors;
+  bool get hasErrors => errors.isNotEmpty;
 }
 
 /// Summary of a completed sync cycle.

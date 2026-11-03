@@ -117,7 +117,12 @@ final startupSyncProvider = Provider<void>((ref) {
 
   Future<void> pull() async {
     if (sync.isSignedIn) {
-      await sync.pullAll();
+      final result = await sync.pullAll();
+      // Log pull errors for debugging (visible in console/logs).
+      if (result.hasErrors) {
+        // ignore: avoid_print
+        print('[SyncService] Pull errors: ${result.errors.join(', ')}');
+      }
     }
   }
 
