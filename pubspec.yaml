@@ -3,7 +3,7 @@ description: "Offline-first personal inventory, customers and orders app."
 publish_to: "none"
 version: 0.1.0+1
 environment:
-  sdk: ">=3.13.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
 dependencies:
   flutter:
     sdk: flutter
